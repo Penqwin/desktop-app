@@ -1,0 +1,70 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-mainBg text-textPrimary;
+  }
+
+
+  /* Firefox Support */
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: theme("colors.border") transparent;
+  }
+
+  /* Chrome, Edge, and Safari Support */
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    /* For horizontal scrollbars */
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-textSecondary;
+  }
+}
+
+/* Prevent background scroll when mobile sidebar drawer is open */
+body.sidebar-drawer-open {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* Remove Tailwind Typography's auto-inserted quote marks on blockquotes */
+.prose blockquote p:first-of-type::before,
+.prose blockquote p:last-of-type::after {
+  content: none;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
