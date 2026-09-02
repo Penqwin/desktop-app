@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useDocStore } from "@/store/useDocStore";
-import { useSidebarOpen } from "@/app/(dashboard)/layout";
-/* Removed next/navigation */
+import { useSidebarOpen } from "@/layouts/DashboardLayout";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 // icons
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
@@ -10,11 +10,11 @@ import AutoModeIcon from "@mui/icons-material/AutoMode";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import MenuIcon from "@mui/icons-material/Menu";
 // enums
-import { SaveStatus } from "@/app/core/enums/SaveStatus";
+import { SaveStatus } from "@/core/enums/SaveStatus";
 import GenerateDocModal from "./UiComponents/GenerateDocModal";
 import { ConfirmationModal } from "./UiComponents/ConfirmationModal";
 import { Editor } from "@tiptap/react";
-import { isMac } from "@/app/core/utils/platform";
+import { isMac } from "@/core/utils/platform";
 import { sanitizeTiptapContent } from "@/utils/sanitizeTiptapContent";
 import { isPlanLimitError } from "@/utils/plan-limit";
 
@@ -29,7 +29,8 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
   const fetchDocContent = useDocStore((state) => state.fetchDocContent);
   const setActiveDoc = useDocStore((state) => state.setActiveDoc);
   const setGeneratingId = useDocStore((state) => state.setGeneratingId);
-  const router = useRouter();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(SaveStatus.IDLE);
   const saveStatusRef = useRef<SaveStatus>(SaveStatus.IDLE);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,7 +62,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
     // ── UNIFIED PATH: always navigate to the new Changeset Summary ───────────
     if (data.summaryDocId) {
       await fetchDocContent(data.summaryDocId);
-      router.push(`/dashboard?doc=${data.summaryDocId}`);
+      navigate(`/?doc=${data.summaryDocId}`);
       return;
     }
 
@@ -70,7 +71,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
 
     // ── LEGACY PATH: regenerate content in the current editor ─────────────
     const documentation = data.documentation;
-    const currentDocId = new URLSearchParams(window.location.search).get("doc");
+    const currentDocId = searchParams.get("doc");
     if (
       currentDocId === "generating" ||
       currentDocId === String(activeDoc?.id)
@@ -136,32 +137,17 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
   const saveToSupabase = async (
     id: string | number,
     content: any,
-    urls: string[],
+    _urls: string[],
   ) => {
     setSaveStatus(SaveStatus.SAVING);
 
     try {
-      const response = await fetch("/api/sidebar-data", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: id,
-          content: content,
-          urls: urls,
-        }),
-      });
+      // Desktop: save content to local storage
+      const { localDb_saveContent } = await import("@/services/localDb");
+      localDb_saveContent(id, content);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to save");
-      }
-
-      const updatedData = await response.json();
-
-      // Update the local state with the content returned from server
-      updateSidebarData(id, {
-        content: updatedData.content,
-      });
+      // Update the local in-memory state too
+      updateSidebarData(id, { content });
       clearDraft(id);
 
       setSaveStatus(SaveStatus.SAVED);
@@ -293,7 +279,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
 
   return (
     <>
-      <div className="py-3 pl-14 pr-4 md:px-8 w-full flex items-center justify-between absolute bg-mainBg z-10">
+      <div className="py-3 pl-14 pr-4 md:px-8 w-full flex items-center justify-between absolute bg-[#1a1a1a] z-10 border-b border-[#333]">
         <div className="flex items-center gap-2 md:gap-4">
           {(isChangesetSummary || isCodeRefDoc) && (
             <button
@@ -308,7 +294,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
                   ? "Regenerate this document from the latest source code"
                   : "Re-generate from a PR or commit URL"
               }
-              className={`px-2 md:px-3 gap-1.5 py-1.5 bg-secondaryBg text-sm text-textSecondary hover:text-textPrimary rounded-md hover:bg-border transition-colors flex items-center ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`px-2 md:px-3 gap-1.5 py-1.5 bg-[#333] text-sm text-gray-300 hover:text-white rounded-md hover:bg-[#444] transition-colors flex items-center ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <AutoModeIcon sx={{ fontSize: 18 }} />
               <span className="hidden sm:inline select-none">
@@ -323,7 +309,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
               onClick={handleDiscard}
               disabled={isInteractionDisabled}
               title="Discard changes"
-              className={`px-2 py-1.5 bg-secondaryBg text-sm text-textSecondary hover:text-textPrimary hover:bg-border rounded-md transition-colors flex items-center gap-2 ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`px-2 py-1.5 bg-[#333] text-sm text-gray-300 hover:text-white hover:bg-[#444] rounded-md transition-colors flex items-center gap-2 ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <RestartAltIcon sx={{ fontSize: 18 }} />
             </button>
@@ -333,7 +319,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
             disabled={saveStatus === SaveStatus.SAVING || isInteractionDisabled}
             title={`Save (${saveShortcut})`}
             className={`px-3 md:px-4 py-1.5 w-28 rounded-md transition-all flex items-center gap-1.5 md:gap-2 min-w-[80px] md:min-w-[100px] justify-center transform-gpu duration-200 ease-in-out
-              ${saveStatus === SaveStatus.SAVING || isInteractionDisabled ? "bg-primary/50 cursor-not-allowed opacity-50" : "bg-primary hover:bg-opacity-80"}
+              ${saveStatus === SaveStatus.SAVING || isInteractionDisabled ? "bg-blue-600/50 cursor-not-allowed opacity-50 text-white" : "bg-blue-600 hover:bg-opacity-80 text-white"}
             `}
           >
             {saveStatus === SaveStatus.SAVING ? (

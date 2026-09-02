@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-/* Removed next/navigation */
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import GoogleIcon from "@mui/icons-material/Google";
-import CircularLoader from "@/app/assets/svg/circular_loader";
+import CircularLoader from "@/assets/svg/circular_loader";
 
 export default function GoogleLoginButton() {
   const supabase = createClient();
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {

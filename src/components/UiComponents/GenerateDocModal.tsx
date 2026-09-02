@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import Modal from "./Modal";
-import { useUser } from "@/app/core/auth/UserContext";
+import { useUser } from "@/core/auth/UserContext";
 import { useDocStore } from "@/store/useDocStore";
-/* Removed next/navigation */
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import AutoAwesome from "@mui/icons-material/AutoAwesome";
 import type { ReviewRequestPayload } from "@/types/review";
 import AddIcon from "@mui/icons-material/Add";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import { isPlanLimitError } from "@/utils/plan-limit";
 import Loader from "./Loader";
 
@@ -49,7 +49,7 @@ const GenerateDocModal = ({
   const { user, organization, refreshProfile } = useUser();
   const activeDoc = useDocStore((s) => s.activeDoc);
   const setGeneratingId = useDocStore((s) => s.setGeneratingId);
-  const router = useRouter();
+  const router = useNavigate();
   const lastSyncedUrls = useRef<string[] | null>(null);
 
   const [bootstrapProgress, setBootstrapProgress] = useState<{
@@ -233,7 +233,7 @@ const GenerateDocModal = ({
         const genParentId = changesetFolder ? changesetFolder.id : "changeset-summary-folder";
         setGeneratingId("generating", genParentId);
         setTimeout(() => {
-          router.push("/dashboard?doc=generating");
+          navigate("/dashboard?doc=generating");
         }, 0);
       }
 
@@ -264,7 +264,7 @@ const GenerateDocModal = ({
             "doc",
           );
           if (currentDocId === "generating") {
-            router.push("/dashboard");
+            navigate("/dashboard");
           }
           return;
         }
@@ -294,7 +294,7 @@ const GenerateDocModal = ({
         "doc",
       );
       if (currentDocId === "generating") {
-        router.push("/dashboard");
+        navigate("/dashboard");
       }
       onOpen(); // Re-open the modal on failure
     } finally {
@@ -567,7 +567,7 @@ const GenerateDocModal = ({
                     }}
                     className="p-2 text-textSecondary hover:text-red-500 transition-colors"
                   >
-                    <DeleteOutlineIcon sx={{ fontSize: 20 }} />
+                    <DeleteOutlinedIcon sx={{ fontSize: 20 }} />
                   </button>
                 )}
               </div>

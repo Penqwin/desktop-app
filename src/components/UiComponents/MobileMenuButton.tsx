@@ -1,5 +1,5 @@
 import MenuIcon from "@mui/icons-material/Menu";
-import { useSidebarOpen } from "@/app/(dashboard)/layout";
+import { useSidebarOpen } from "@/layouts/DashboardLayout";
 
 /**
  * A hamburger button that opens the sidebar drawer.

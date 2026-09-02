@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { SidebarItem } from "@/types/sidebar";
+import type { SidebarItem } from "@/types/sidebar";
 import type { ReviewRequestPayload } from "@/types/review";
 
 interface DocState {
@@ -69,9 +69,8 @@ export const useDocStore = create<DocState>((set, get) => ({
     set({ fetchingId: id });
 
     try {
-      const response = await fetch(`/api/sidebar-data?id=${id}`);
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      const { localDb_getContent } = await import("@/services/localDb");
+      const content = localDb_getContent(id);
 
       // Update activeDoc and sidebarData with the fetched content
       const currentActive = get().activeDoc;
@@ -79,8 +78,8 @@ export const useDocStore = create<DocState>((set, get) => ({
         set({
           activeDoc: {
             ...currentActive,
-            content: data.content,
-            urls: data.urls || [],
+            content: content || null,
+            urls: [],
           } as SidebarItem,
         });
       }
@@ -88,8 +87,8 @@ export const useDocStore = create<DocState>((set, get) => ({
       // Also update it in the sidebar tree so it's cached for future switches
       set({
         sidebarData: updateNestedItem(get().sidebarData, id, {
-          content: data.content,
-          urls: data.urls || [],
+          content: content || null,
+          urls: [],
         }),
       });
     } catch (error) {

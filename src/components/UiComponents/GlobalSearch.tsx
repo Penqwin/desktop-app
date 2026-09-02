@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-/* Removed next/navigation */
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +9,8 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import TextSnippetIcon from "@mui/icons-material/TextSnippetOutlined";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import { useUser } from "@/app/core/auth/UserContext";
-import { useDebounce } from "@/app/hooks/useDebounce";
+import { useUser } from "@/core/auth/UserContext";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface SearchResult {
   id: string | number;
@@ -30,7 +30,7 @@ export default function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { organization } = useUser();
-  const router = useRouter();
+  const router = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounce(query, 400);
@@ -106,7 +106,7 @@ export default function GlobalSearch({ open, onClose }: GlobalSearchProps) {
 
   const handleResultClick = (result: SearchResult) => {
     if (result.type === "file") {
-      router.push(`/dashboard?doc=${result.id}`);
+      navigate(`/dashboard?doc=${result.id}`);
       onClose();
     }
     // Could also handle folder navigation if needed

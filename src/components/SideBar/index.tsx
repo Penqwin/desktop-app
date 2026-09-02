@@ -7,13 +7,11 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-/* Removed next/navigation */
-import { useSidebarClose } from "@/app/(dashboard)/layout";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { useSidebarClose } from "@/layouts/DashboardLayout";
+import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import {
   DndContext,
-  DragEndEvent,
-  DragOverEvent,
-  DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -26,7 +24,7 @@ import {
   KeyboardSensor,
 } from "@dnd-kit/core";
 import { restrictToWindowEdges } from "@dnd-kit/modifiers";
-import TreeItem, { TreeItemRow } from "@/app/components/SideBar/TreeItem";
+import TreeItem, { TreeItemRow } from "@/components/SideBar/TreeItem";
 import GenerateDocModal from "../UiComponents/GenerateDocModal";
 import ReviewDocModal from "../UiComponents/ReviewDocModal";
 import { ConfirmationModal } from "../UiComponents/ConfirmationModal";
@@ -34,11 +32,18 @@ import GlobalSearch from "../UiComponents/GlobalSearch";
 import UpgradeToProModal from "../UiComponents/UpgradeToProModal";
 // utils
 import { buildTree } from "@/utils/tree";
-import { getModifier } from "@/app/core/utils/platform";
+import { getModifier } from "@/core/utils/platform";
 import { isPlanLimitError } from "@/utils/plan-limit";
 // store
 import { useDocStore } from "@/store/useDocStore";
-import { useUser } from "@/app/core/auth/UserContext";
+import { useUser } from "@/core/auth/UserContext";
+import {
+  localDb_getSidebarItems,
+  localDb_createItem,
+  localDb_deleteItems,
+  localDb_renameItem,
+  localDb_moveItem,
+} from "@/services/localDb";
 // icons
 import GearIcon from "@mui/icons-material/SettingsOutlined";
 import PostAddOutlinedIcon from "@mui/icons-material/PostAddOutlined";
@@ -53,7 +58,7 @@ import BusinessIcon from "@mui/icons-material/Business";
 import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 // types
-import { SidebarItem } from "@/types/sidebar";
+import type { SidebarItem } from "@/types/sidebar";
 
 const TopDropZone = ({ activeItem }: { activeItem: any }) => {
   const { setNodeRef, isOver } = useDroppable({ id: "root-top" });
@@ -190,20 +195,17 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
 
   const isReadOnly = organization?.user_role === "read only";
 
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  const fetchSidebarData = async () => {
+  const fetchSidebarData = () => {
     try {
       setIsFetchingSidebarData(true);
-      const res = await fetch(
-        `/api/sidebar-data?orgId=${organization?.id}&t=${Date.now()}`,
-      );
-      const data = await res.json();
+      const data = localDb_getSidebarItems();
       setSidebarData(data || []);
     } catch (err) {
-      console.error("Failed to fetch sidebar", err);
+      console.error("Failed to load local sidebar", err);
     } finally {
       setIsFetchingSidebarData(false);
     }
@@ -211,10 +213,9 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
 
   useEffect(() => {
     setMounted(true);
-    if (!user?.id) return;
-
     fetchSidebarData();
-  }, [user?.id, organization?.id, setSidebarData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const el = container.current;
@@ -389,35 +390,13 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       setCreatingItem({ name, parentId, type: isFolder ? "folder" : "file" });
 
       try {
-        const response = await fetch("/api/sidebar-data", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            parentId,
-            isFolder,
-            organizationId: organization?.id,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          if (isPlanLimitError(errorData)) {
-            setUpgradeMessage(errorData.error || "Upgrade to Pro to continue.");
-            setIsUpgradeModalOpen(true);
-            return;
-          }
-          throw new Error(errorData.error || "Failed to create item");
-        }
-
-        const newEntity = await response.json();
-
-        const preparedNode = { ...newEntity, children: [] }; // Ensure it has a children array for folders
-        setSidebarData([...sidebarData, preparedNode]); // Add to flat list
+        const newEntity = localDb_createItem(name, isFolder, parentId);
+        const preparedNode = { ...newEntity, children: [] };
+        setSidebarData([...sidebarData, preparedNode]);
 
         if (!isFolder) {
           setActiveDoc(preparedNode);
-          router.push(`/dashboard?doc=${preparedNode.id}`);
+          navigate(`/?doc=${preparedNode.id}`);
         }
         toast.success(
           `${isFolder ? "Folder" : "Document"} created successfully!`,
@@ -434,11 +413,10 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       }
     },
     [
-      organization?.id,
       sidebarData,
       setSidebarData,
       setActiveDoc,
-      router,
+      navigate,
       setCreatingItem,
     ],
   );
@@ -474,26 +452,13 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         setIsDeleting(true);
         const idsToDelete = getDescendantIds(entityToDelete, sidebarData);
 
-        const response = await fetch(
-          `/api/sidebar-data?ids=${idsToDelete.join(",")}`,
-          {
-            method: "DELETE",
-          },
-        );
+        localDb_deleteItems(idsToDelete);
+        const idsSet = new Set(idsToDelete.map(String));
+        setSidebarData(sidebarData.filter((item) => !idsSet.has(String(item.id))));
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to delete");
-        }
-
-        // Update UI state locally for all deleted items
-        const idsSet = new Set(idsToDelete);
-        setSidebarData(sidebarData.filter((item) => !idsSet.has(item.id)));
-
-        // If the currently active doc was deleted, reset to the initial screen
-        if (activeDoc && idsSet.has(activeDoc.id)) {
+        if (activeDoc && idsSet.has(String(activeDoc.id))) {
           setActiveDoc(null);
-          router.push("/dashboard");
+          navigate("/");
         }
 
         toast.success("Item deleted successfully");
@@ -516,16 +481,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
   const handleEntityRename = useCallback(
     async (id: number | string, newName: string) => {
       try {
-        const response = await fetch("/api/sidebar-data", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, name: newName }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to rename item");
-        }
-
+        localDb_renameItem(id, newName);
         setSidebarData(
           sidebarData.map((item) =>
             item.id === id ? { ...item, name: newName } : item,
@@ -542,12 +498,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
   /** Refreshes sidebar data from the server, sets the active doc and fetches its content. */
   const refreshSidebarAndNavigate = useCallback(
     async (targetDocId: string | number) => {
-      const sidebarRes = await fetch(
-        `/api/sidebar-data?orgId=${organization?.id}&t=${Date.now()}`,
-      );
-      if (!sidebarRes.ok) return;
-
-      const freshSidebar = await sidebarRes.json();
+      const freshSidebar = localDb_getSidebarItems();
       const withChildren = freshSidebar.map((item: any) => ({
         ...item,
         children: [],
@@ -562,7 +513,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         setActiveDoc(targetDoc);
         await fetchDocContent(targetDoc.id);
       }
-      router.push(`/dashboard?doc=${targetDocId}`);
+      navigate(`/?doc=${targetDocId}`);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [organization?.id],
@@ -602,49 +553,16 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       const documentation = data.documentation;
       const metadata = data.metadata;
 
-      const createResponse = await fetch("/api/sidebar-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: metadata.title,
-          content: documentation,
-          parentId: useDocStore.getState().generationParentId,
-          isFolder: false,
-          organizationId: organization?.id,
-          urls: validUrls,
-        }),
-      });
+      const genParentId = useDocStore.getState().generationParentId;
+      const newDoc = localDb_createItem(metadata.title, false, genParentId, documentation);
 
-      if (!createResponse.ok) {
-        const errorData = await createResponse.json();
-        if (isPlanLimitError(errorData)) {
-          setUpgradeMessage(errorData.error || "Upgrade to Pro to continue.");
-          setIsUpgradeModalOpen(true);
-          setGeneratingId(null);
-          const currentDocId = new URLSearchParams(window.location.search).get(
-            "doc",
-          );
-          if (currentDocId === "generating") {
-            router.push("/dashboard");
-          }
-          return;
-        }
-        throw new Error(errorData.error || "Failed to save generated document");
-      }
-
-      const newDoc = await createResponse.json();
-
-      // Update local state with the new document
       const preparedNode = { ...newDoc, children: [] };
       setSidebarData([...sidebarData, preparedNode]);
 
-      // Set the new document as active and redirect ONLY if currently on generating view
-      const currentDocId = new URLSearchParams(window.location.search).get(
-        "doc",
-      );
+      const currentDocId = new URLSearchParams(window.location.search).get("doc");
       if (currentDocId === "generating") {
         setActiveDoc(preparedNode);
-        router.push(`/dashboard?doc=${preparedNode.id}`);
+        navigate(`/?doc=${preparedNode.id}`);
       }
 
       toast.success("Documentation generated and saved!");
@@ -655,7 +573,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         "doc",
       );
       if (currentDocId === "generating") {
-        router.push("/dashboard");
+        navigate("/dashboard");
       }
     }
   };
@@ -797,14 +715,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
     moveSidebarItem(draggedItem.id, newParentId);
 
     try {
-      const response = await fetch("/api/sidebar-data", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: draggedItem.id, parentId: newParentId }),
-      });
-
-      if (!response.ok) throw new Error("Failed to move item");
-
+      localDb_moveItem(draggedItem.id, newParentId);
       toast.success(`Moved "${draggedItem.name}" successfully`);
     } catch (error: any) {
       console.error(error);
@@ -995,7 +906,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
                 <div className="mt-2 pt-2 border-t border-border">
                   <button
                     onClick={() => {
-                      router.push("/create-org");
+                      navigate("/create-org");
                       setIsOrgDropdownOpen(false);
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-border/40 transition-colors text-left text-textSecondary hover:text-textPrimary"
@@ -1007,7 +918,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
                   </button>
                   <button
                     onClick={() => {
-                      router.push("/settings");
+                      navigate("/settings");
                       setIsOrgDropdownOpen(false);
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-border/40 transition-colors text-left text-textSecondary hover:text-textPrimary"

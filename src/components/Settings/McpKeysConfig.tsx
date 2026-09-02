@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ConfirmationModal } from "../UiComponents/ConfirmationModal";
 import Modal from "../UiComponents/Modal";
 import Loader from "../UiComponents/Loader";
-import CircularLoader from "@/app/assets/svg/circular_loader";
+import CircularLoader from "@/assets/svg/circular_loader";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import RefreshIcon from "@mui/icons-material/Refresh";

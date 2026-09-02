@@ -1,11 +1,11 @@
 // src/components/GithubConnect.tsx
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import Loader from "@/app/components/UiComponents/Loader";
+import Loader from "@/components/UiComponents/Loader";
 import { createPortal } from "react-dom";
-/* Removed next/navigation */
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { ConfirmationModal } from "../UiComponents/ConfirmationModal";
-import CircularLoader from "@/app/assets/svg/circular_loader";
+import CircularLoader from "@/assets/svg/circular_loader";
 import Dropdown from "../UiComponents/Dropdown";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
@@ -42,8 +42,8 @@ export default function GithubConnect({
     (item) => item.name === "Code Reference" && item.type === "folder",
   );
 
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const [searchParams] = useSearchParams();
+  const pathname = useLocation();
 
   useEffect(() => {
     async function checkStatus() {

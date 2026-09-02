@@ -1,6 +1,6 @@
-import Modal from "@/app/components/UiComponents/Modal";
+import Modal from "@/components/UiComponents/Modal";
 import { ReactNode } from "react";
-import CircularLoader from "@/app/assets/svg/circular_loader";
+import CircularLoader from "@/assets/svg/circular_loader";
 
 interface ConfirmationModalProps {
   isOpen: boolean;

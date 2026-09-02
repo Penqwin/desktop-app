@@ -7,13 +7,13 @@ import CreateNewFolderOutlinedIcon from "@mui/icons-material/CreateNewFolderOutl
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useDocStore } from "@/store/useDocStore";
-/* Removed next/navigation */
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
-import { useSidebarClose } from "@/app/(dashboard)/layout";
+import { useSidebarClose } from "@/layouts/DashboardLayout";
 
 import { useDraggable, useDroppable, useDndContext } from "@dnd-kit/core";
 
-import { SidebarItem } from "@/types/sidebar";
+import type { SidebarItem } from "@/types/sidebar";
 
 export const TreeItemRow = ({
   item,
@@ -206,9 +206,9 @@ const TreeItem = ({
     opacity: isDragging ? 0.3 : 1,
   };
 
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const router = useNavigate();
+  const pathname = useLocation();
+  const [searchParams] = useSearchParams();
   const docIdParam = searchParams.get("doc");
 
   const hasChildren = !!(
@@ -243,7 +243,7 @@ const TreeItem = ({
     if (isRenaming || isAnyDragging) return;
     if ((isProcessing && !isGeneratingItem) || isCreatingItem) return; // Prevent clicking while processing
     if (isGeneratingItem) {
-      router.push(`/dashboard?doc=generating`);
+      navigate(`/dashboard?doc=generating`);
       // Close sidebar on mobile when navigating
       if (window.innerWidth < 768) closeSidebar();
       return;
@@ -251,7 +251,7 @@ const TreeItem = ({
     if (item.type === "file") {
       setActiveDoc(item);
       fetchDocContent(item.id);
-      router.push(`/dashboard?doc=${item.id}`);
+      navigate(`/dashboard?doc=${item.id}`);
       // Auto-close the sidebar drawer on mobile after selecting a doc
       if (window.innerWidth < 768) closeSidebar();
     } else {

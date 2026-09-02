@@ -1,12 +1,12 @@
 
 import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-/* Removed next/navigation */
-import CircularLoader from '@/app/assets/svg/circular_loader'
+import { useNavigate, useLocation } from "react-router-dom";
+import CircularLoader from '@/assets/svg/circular_loader'
 
 export default function LogoutButton() {
   const supabase = createClient()
-  const router = useRouter()
+  const router = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleLogout = async () => {
@@ -17,7 +17,7 @@ export default function LogoutButton() {
       console.error('Error logging out:', error.message)
       setIsLoading(false)
     } else {
-      router.push('/login')
+      navigate('/login')
       router.refresh()
     }
   }
