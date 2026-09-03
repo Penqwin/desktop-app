@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   gitLog: (repoPath?: string) => ipcRenderer.invoke('git-log', repoPath),
   gitDiffCommits: (hashes: string[], repoPath?: string) => ipcRenderer.invoke('git-diff-commits', hashes, repoPath),
+  readDirRecursive: (dirPath: string) => ipcRenderer.invoke('read-dir-recursive', dirPath),
+  readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   generateDoc: (payload: any) => ipcRenderer.invoke('generate-doc', payload),
 });

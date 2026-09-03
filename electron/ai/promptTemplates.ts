@@ -34,7 +34,22 @@ CRITICAL INSTRUCTIONS:
 
 Goal: Provide a clear understanding of the evolution of the codebase in this specific update.`;
 
-export function getSystemInstruction() {
+export const bootstrapPrompt = `
+${SECURITY_DIRECTIVE}
+
+You are a Senior Technical Writer and Lead Engineer.
+Your task is to analyze the provided source code file and generate comprehensive technical documentation for it.
+
+CRITICAL INSTRUCTIONS:
+1.  **Overview**: What does this file do and what is its role in the broader system?
+2.  **Key Components**: Document classes, functions, or major components with their purpose.
+3.  **Dependencies**: What are the main internal and external dependencies?
+4.  **Tone**: Professional, precise, and educational.
+5.  **Markdown**: Use clean Markdown with clear headings.
+
+Goal: Create a standalone reference document for this specific file.`;
+
+export function getSystemInstruction(isBootstrap = false) {
   const dataDir = getDataDir();
   
   let apiReferenceSample = '';
@@ -65,8 +80,10 @@ Notice the clear hierarchy, use of tables for API endpoints and data models, and
 \n${notificationCentreSample}\n
 ---`;
 
+  const taskPrompt = isBootstrap ? bootstrapPrompt : changesetSummaryPrompt;
+
   return `
-${changesetSummaryPrompt}
+${taskPrompt}
 ${EXAMPLES_BLOCK}
 
 IMPORTANT: Your response must contain ONLY the Markdown body. No preambles, no "Here is the update", no internal thoughts, and no meta-commentary.

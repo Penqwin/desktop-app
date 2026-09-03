@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { simpleGit } from 'simple-git';
 import { generateDocFromDiff } from './ai/gemini.js';
@@ -123,12 +124,54 @@ ipcMain.handle('git-diff-commits', async (_event, hashes: string[], repoPath?: s
   }
 });
 
+// --- File System IPC Handlers ---
+
+ipcMain.handle('read-dir-recursive', async (_event, dirPath: string) => {
+  try {
+    const results: string[] = [];
+    const walk = (currentPath: string) => {
+      const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+      for (const entry of entries) {
+        // Ignore hidden files and standard build/dependency folders
+        if (entry.name.startsWith('.') || ['node_modules', 'dist', 'build', 'out'].includes(entry.name)) {
+          continue;
+        }
+        
+        const fullPath = path.join(currentPath, entry.name);
+        if (entry.isDirectory()) {
+          walk(fullPath);
+        } else {
+          // Add some simple filtering (only text-like files, etc.)
+          const ext = path.extname(entry.name).toLowerCase();
+          const validExts = ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.go', '.rs', '.py', '.rb', '.java', '.c', '.cpp', '.h', '.hpp', '.cs'];
+          if (validExts.includes(ext) || ext === '') {
+            results.push(path.relative(dirPath, fullPath));
+          }
+        }
+      }
+    };
+    walk(dirPath);
+    return { success: true, data: results };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('read-file', async (_event, filePath: string) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return { success: true, data: content };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 // --- AI Generation IPC Handlers ---
 
 ipcMain.handle('generate-doc', async (_event, payload) => {
-  const { apiKey, modelName, systemInstruction, userMessage } = payload;
+  const { apiKey, modelName, systemInstruction, userMessage, isBootstrap } = payload;
   try {
-    const result = await generateDocFromDiff(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, userMessage);
+    const result = await generateDocFromDiff(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, userMessage, isBootstrap);
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message };
