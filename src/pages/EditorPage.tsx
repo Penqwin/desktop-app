@@ -4,14 +4,15 @@ import { toast } from "sonner";
 import DocNavbar from "@/components/DocNavbar";
 import { useSidebarOpen } from "@/layouts/DashboardLayout";
 // tiptap
+import "@/assets/styles/text_editor.css";
 import {
   useEditor,
   Extension,
   ReactNodeViewRenderer,
   NodeViewWrapper,
   NodeViewContent,
-  EditorContent,
 } from "@tiptap/react";
+import TextEditor from "@/components/Editor/TextEditor";
 import CodeBlock from "@tiptap/extension-code-block";
 import { Markdown } from "tiptap-markdown";
 import StarterKit from "@tiptap/starter-kit";
@@ -359,7 +360,7 @@ const EditorPage = () => {
                 ref={scrollContainerRef}
                 className={`pb-20 h-full overflow-y-scroll prose prose-invert max-w-none min-w-0 relative ${isReadOnly ? "pt-10" : ""}`}
               >
-                <EditorContent editor={editor} />
+                <TextEditor editor={editor} />
               </div>
             )}
           </div>

@@ -279,7 +279,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
 
   return (
     <>
-      <div className="py-3 pl-14 pr-4 md:px-8 w-full flex items-center justify-between absolute bg-[#1a1a1a] z-10 border-b border-[#333]">
+      <div className="py-3 pl-14 pr-4 md:px-8 w-full flex items-center justify-between absolute bg-secondaryBg z-10 border-b border-border">
         <div className="flex items-center gap-2 md:gap-4">
           {(isChangesetSummary || isCodeRefDoc) && (
             <button
@@ -294,7 +294,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
                   ? "Regenerate this document from the latest source code"
                   : "Re-generate from a PR or commit URL"
               }
-              className={`px-2 md:px-3 gap-1.5 py-1.5 bg-[#333] text-sm text-gray-300 hover:text-white rounded-md hover:bg-[#444] transition-colors flex items-center ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`px-2 md:px-3 gap-1.5 py-1.5 bg-secondaryBg text-sm text-textSecondary hover:text-textPrimary rounded-md hover:bg-secondaryBg/80 transition-colors flex items-center ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <AutoModeIcon sx={{ fontSize: 18 }} />
               <span className="hidden sm:inline select-none">
@@ -309,7 +309,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
               onClick={handleDiscard}
               disabled={isInteractionDisabled}
               title="Discard changes"
-              className={`px-2 py-1.5 bg-[#333] text-sm text-gray-300 hover:text-white hover:bg-[#444] rounded-md transition-colors flex items-center gap-2 ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`px-2 py-1.5 bg-secondaryBg text-sm text-textSecondary hover:text-textPrimary hover:bg-secondaryBg/80 rounded-md transition-colors flex items-center gap-2 ${isInteractionDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <RestartAltIcon sx={{ fontSize: 18 }} />
             </button>

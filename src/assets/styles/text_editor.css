@@ -1,0 +1,163 @@
+/* Target the placeholder within the Tiptap editor */
+.tiptap p.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #94a3b8; /* slate-400 */
+  pointer-events: none;
+  height: 0;
+}
+
+/* Hide placeholder inside table cells */
+.tiptap td p.is-empty::before,
+.tiptap th p.is-empty::before {
+  content: none;
+  display: none;
+}
+
+/* Basic editor styling */
+.tiptap {
+  @apply pl-6 min-h-[150px] outline-none transition-all duration-200 break-words;
+}
+
+.tiptap p {
+  @apply my-4 leading-relaxed;
+}
+
+.tiptap code {
+  @apply bg-secondaryBg text-primary px-1.5 py-0.5 rounded font-mono text-[0.9em] border border-border;
+}
+
+.tiptap code::before,
+.tiptap code::after {
+  content: none;
+}
+
+.tiptap pre {
+  @apply bg-secondaryBg p-4 rounded-lg my-4 border border-border overflow-x-auto;
+}
+
+.tiptap pre code {
+  @apply bg-transparent p-0 border-none text-textPrimary text-sm;
+}
+
+.tiptap blockquote {
+  @apply text-textSecondary border-l-4 border-primary pl-4 mx-0 my-6 italic bg-secondaryBg/30 py-1;
+}
+
+.tiptap blockquote p {
+  @apply my-2;
+}
+
+.ProseMirror h1 {
+  @apply text-4xl font-bold mb-6 mt-8 text-textPrimary;
+}
+
+.ProseMirror h2 {
+  @apply text-3xl font-semibold mb-5 mt-7 text-textPrimary;
+}
+
+.ProseMirror h3 {
+  @apply text-2xl font-medium mb-4 mt-6 text-textPrimary;
+}
+
+/* Drag Handle */
+.custom-drag-handle {
+  @apply flex items-center justify-center w-6 h-6 rounded cursor-grab text-border transition-all duration-200;
+}
+
+.custom-drag-handle:hover {
+  @apply text-primary;
+}
+
+.custom-drag-handle:active {
+  @apply cursor-grabbing text-primary;
+}
+
+/* Floating menu animation */
+.tippy-box[data-animation='fade'][data-state='hidden'] {
+  opacity: 0;
+}
+
+.floating-menu-container {
+  @apply flex flex-col p-1 bg-mainBg border border-border shadow-2xl rounded-md;
+}
+
+/* Unordered / ordered lists */
+.tiptap ul {
+  @apply list-disc pl-6 my-4 space-y-2;
+}
+
+.tiptap ol {
+  @apply list-decimal pl-6 my-4 space-y-2;
+}
+
+/* Tables */
+.tiptap table {
+  border-collapse: collapse;
+  margin: 0;
+  overflow: hidden;
+  table-layout: fixed;
+  width: 100%;
+  @apply my-6;
+}
+
+.tiptap table td,
+.tiptap table th {
+  border: 1px solid #334155; /* slate-700 */
+  box-sizing: border-box;
+  min-width: 1em;
+  padding: 8px 12px;
+  position: relative;
+  vertical-align: top;
+}
+
+.tiptap table td p,
+.tiptap table th p {
+  margin: 0;
+}
+
+.tiptap table th {
+  background-color: rgba(255, 255, 255, 0.05);
+  font-weight: bold;
+  text-align: left;
+}
+
+.tiptap .tableWrapper {
+  overflow-x: auto;
+}
+
+.tiptap .column-resize-handle {
+  background-color: #3b82f6;
+  bottom: -2px;
+  pointer-events: none;
+  position: absolute;
+  right: -2px;
+  top: 0;
+  width: 4px;
+}
+
+.tiptap .selectedCell:after {
+  background: rgba(59, 130, 246, 0.1);
+  content: "";
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+/* Horizontal rule */
+.tiptap hr {
+  @apply border-none border-t border-border my-8;
+}
+
+/* Links */
+.tiptap a {
+  @apply text-accent underline underline-offset-2 cursor-pointer;
+}
+
+.tiptap a:hover {
+  @apply text-accent/80;
+}
