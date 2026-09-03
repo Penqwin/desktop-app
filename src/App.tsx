@@ -8,6 +8,8 @@ import './App.css'
 import { UserProvider } from '@/core/auth/UserContext'
 import { ErrorBoundary } from './ErrorBoundary'
 
+import { Toaster } from 'sonner'
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -26,6 +28,7 @@ function App() {
   return (
     <ErrorBoundary>
       <UserProvider>
+        <Toaster />
         <RouterProvider router={router} />
       </UserProvider>
     </ErrorBoundary>

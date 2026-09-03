@@ -5,5 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gitStatus: () => ipcRenderer.invoke('git-status'),
   gitDiff: (target: string) => ipcRenderer.invoke('git-diff', target),
   gitBranches: () => ipcRenderer.invoke('git-branches'),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  gitLog: (repoPath?: string) => ipcRenderer.invoke('git-log', repoPath),
+  gitDiffCommits: (hashes: string[], repoPath?: string) => ipcRenderer.invoke('git-diff-commits', hashes, repoPath),
   generateDoc: (payload: any) => ipcRenderer.invoke('generate-doc', payload),
 });

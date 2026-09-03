@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { simpleGit } from 'simple-git';
@@ -15,7 +15,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -74,6 +74,50 @@ ipcMain.handle('git-branches', async () => {
   try {
     const branches = await git.branch();
     return { success: true, data: branches.all, current: branches.current };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('select-directory', async () => {
+  try {
+    const win = BrowserWindow.getFocusedWindow();
+    const opts = { properties: ['openDirectory'] as ('openDirectory' | 'openFile')[] };
+    const { canceled, filePaths } = await dialog.showOpenDialog(opts);
+      
+    if (!canceled && filePaths.length > 0) {
+      const selectedPath = filePaths[0];
+      await git.cwd(selectedPath);
+      return { success: true, data: selectedPath };
+    }
+    return { success: false, error: 'Canceled' };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-log', async (_event, repoPath?: string) => {
+  try {
+    if (repoPath) await git.cwd(repoPath);
+    const log = await git.log({ maxCount: 50 });
+    return { success: true, data: log.all };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-diff-commits', async (_event, hashes: string[], repoPath?: string) => {
+  try {
+    if (repoPath) await git.cwd(repoPath);
+    let combinedDiff = '';
+    for (const hash of hashes) {
+      // Get commit message
+      const showMsg = await git.show(['-s', '--format=%h - %s%n%b', hash]);
+      // Get commit diff
+      const diff = await git.show([hash, '--pretty=format:']);
+      combinedDiff += `\n\n--- Commit: ${showMsg.trim()} ---\n\n${diff}`;
+    }
+    return { success: true, data: combinedDiff.trim() };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
