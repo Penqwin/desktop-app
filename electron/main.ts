@@ -114,8 +114,20 @@ ipcMain.handle('git-diff-commits', async (_event, hashes: string[], repoPath?: s
     for (const hash of hashes) {
       // Get commit message
       const showMsg = await git.show(['-s', '--format=%h - %s%n%b', hash]);
-      // Get commit diff
-      const diff = await git.show([hash, '--pretty=format:']);
+      // Get commit diff, excluding lockfiles and common binary/image extensions to save LLM tokens
+      const diff = await git.show([
+        hash, 
+        '--pretty=format:', 
+        '--', 
+        '.', 
+        ':(exclude)*.lock', 
+        ':(exclude)*.svg', 
+        ':(exclude)*.png',
+        ':(exclude)*.jpg',
+        ':(exclude)*.jpeg',
+        ':(exclude)*.webp',
+        ':(exclude)*.gif'
+      ]);
       combinedDiff += `\n\n--- Commit: ${showMsg.trim()} ---\n\n${diff}`;
     }
     return { success: true, data: combinedDiff.trim() };
@@ -128,32 +140,45 @@ ipcMain.handle('git-diff-commits', async (_event, hashes: string[], repoPath?: s
 
 ipcMain.handle('read-dir-recursive', async (_event, dirPath: string) => {
   try {
-    const results: string[] = [];
-    const walk = (currentPath: string) => {
-      const entries = fs.readdirSync(currentPath, { withFileTypes: true });
-      for (const entry of entries) {
-        // Ignore hidden files and standard build/dependency folders
-        if (entry.name.startsWith('.') || ['node_modules', 'dist', 'build', 'out'].includes(entry.name)) {
-          continue;
-        }
-        
-        const fullPath = path.join(currentPath, entry.name);
-        if (entry.isDirectory()) {
-          walk(fullPath);
-        } else {
-          // Add some simple filtering (only text-like files, etc.)
-          const ext = path.extname(entry.name).toLowerCase();
-          const validExts = ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.go', '.rs', '.py', '.rb', '.java', '.c', '.cpp', '.h', '.hpp', '.cs'];
-          if (validExts.includes(ext) || ext === '') {
-            results.push(path.relative(dirPath, fullPath));
-          }
-        }
-      }
-    };
-    walk(dirPath);
+    await git.cwd(dirPath);
+    // Use git ls-files to get all tracked (-c) and untracked but not ignored (-o) files
+    // --exclude-standard ensures we respect .gitignore
+    const rawFiles = await git.raw(['ls-files', '-c', '-o', '--exclude-standard']);
+    const files = rawFiles.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+    
+    // Filter to only include text-like files to avoid sending binaries/images to Gemini
+    const results = files.filter(f => {
+      const ext = path.extname(f).toLowerCase();
+      const validExts = ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.go', '.rs', '.py', '.rb', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.css', '.html'];
+      return validExts.includes(ext) || ext === '';
+    });
+    
     return { success: true, data: results };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    // Fallback if not a git repository
+    try {
+      const results: string[] = [];
+      const walk = (currentPath: string) => {
+        const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.name.startsWith('.') || ['node_modules', 'dist', 'build', 'out'].includes(entry.name)) continue;
+          const fullPath = path.join(currentPath, entry.name);
+          if (entry.isDirectory()) {
+            walk(fullPath);
+          } else {
+            const ext = path.extname(entry.name).toLowerCase();
+            const validExts = ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.go', '.rs', '.py', '.rb', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.css', '.html'];
+            if (validExts.includes(ext) || ext === '') {
+              results.push(path.relative(dirPath, fullPath));
+            }
+          }
+        }
+      };
+      walk(dirPath);
+      return { success: true, data: results };
+    } catch (fallbackErr: any) {
+      return { success: false, error: fallbackErr.message };
+    }
   }
 });
 
