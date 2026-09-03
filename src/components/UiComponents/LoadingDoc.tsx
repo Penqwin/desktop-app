@@ -71,7 +71,7 @@ const LoadingDoc = ({ isGenerating = false }: LoadingDocProps) => {
         ))}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes scan {
           0% {
             transform: translateY(-100px);

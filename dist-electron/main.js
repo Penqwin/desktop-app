@@ -119,7 +119,7 @@ ipcMain.handle('git-diff-commits', async (_event, hashes, repoPath) => {
 ipcMain.handle('generate-doc', async (_event, payload) => {
     const { apiKey, modelName, systemInstruction, userMessage } = payload;
     try {
-        const result = await generateDocFromDiff(apiKey, modelName || 'gemini-1.5-flash', systemInstruction, userMessage);
+        const result = await generateDocFromDiff(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, userMessage);
         return { success: true, data: result };
     }
     catch (error) {

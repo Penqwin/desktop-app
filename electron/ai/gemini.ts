@@ -1,9 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getSystemInstruction } from './promptTemplates.js';
 
 export async function generateDocFromDiff(
   apiKey: string,
   modelName: string,
-  systemInstruction: string,
+  systemInstruction: string, // Kept for backwards compatibility but ignored
   userMessage: string
 ): Promise<string> {
   if (!apiKey) throw new Error("Gemini API key is required");
@@ -11,7 +12,7 @@ export async function generateDocFromDiff(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: modelName,
-    systemInstruction,
+    systemInstruction: getSystemInstruction(),
   });
 
   const result = await model.generateContent(userMessage);

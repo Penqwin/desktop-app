@@ -4,7 +4,10 @@ import { toast } from "sonner";
 import AutoAwesome from "@mui/icons-material/AutoAwesome";
 import Loader from "./Loader";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import { localDb_createItem } from "@/services/localDb";
+import {
+  localDb_createItem,
+  localDb_getSidebarItems,
+} from "@/services/localDb";
 
 const electronAPI = (window as any).electronAPI;
 
@@ -26,12 +29,16 @@ export default function GenerateDocModal({
   onClose,
   onSuccess,
   parentId = null,
+  autoStart = false,
+  initialUrls = [],
 }: GenerateDocModalProps) {
   const [repoPath, setRepoPath] = useState<string>(
-    localStorage.getItem("last_repo_path") || ""
+    localStorage.getItem("last_repo_path") || "",
   );
   const [commits, setCommits] = useState<any[]>([]);
-  const [selectedCommits, setSelectedCommits] = useState<Set<string>>(new Set());
+  const [selectedCommits, setSelectedCommits] = useState<Set<string>>(
+    new Set(),
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingCommits, setIsLoadingCommits] = useState(false);
 
@@ -55,7 +62,7 @@ export default function GenerateDocModal({
       toast.error("Electron API not available on window object.");
       return;
     }
-    
+
     try {
       const res = await api.selectDirectory();
       if (res.success && res.data) {
@@ -66,10 +73,7 @@ export default function GenerateDocModal({
         toast.error(res.error || "Failed to select directory");
       }
     } catch (e: any) {
-      toast.error(
-        "Failed to communicate with Electron. Error: " +
-          e.message
-      );
+      toast.error("Failed to communicate with Electron. Error: " + e.message);
     }
   };
 
@@ -132,12 +136,8 @@ export default function GenerateDocModal({
         throw new Error("No changes found in selected commits");
       }
 
-      const systemInstruction = `You are a technical documentation assistant. Given the following git commit messages and code diff, write a comprehensive summary documentation of the changes. 
-Use clear headings, bullet points, and code blocks where appropriate. Do not include any greeting or conversational filler. Output pure Markdown.`;
-
       const genRes = await api.generateDoc({
         apiKey,
-        systemInstruction,
         userMessage: diff,
       });
 
@@ -147,13 +147,39 @@ Use clear headings, bullet points, and code blocks where appropriate. Do not inc
 
       const generatedMarkdown = genRes.data;
 
-      // Save to local IndexedDB
-      const docName = hashes.length === 1 ? `Doc: ${hashes[0].substring(0, 7)}` : `Doc: ${hashes.length} commits`;
+      // Ensure target folder exists
+      const isBootstrap = autoStart || (initialUrls && initialUrls.length > 0);
+      const targetFolderName = isBootstrap
+        ? "Code Reference"
+        : "Changeset Summary";
+
+      const sidebarItems = await localDb_getSidebarItems();
+      let targetFolder = sidebarItems.find(
+        (item) =>
+          item.type === "folder" &&
+          item.name === targetFolderName &&
+          item.parent_id === null,
+      );
+
+      if (!targetFolder) {
+        targetFolder = await localDb_createItem(targetFolderName, true, null);
+      }
+
+      // Save to local IndexedDB inside target folder
+      let docName = `Doc: ${hashes.length} commits`;
+      if (hashes.length === 1) {
+        const commit = commits.find((c) => c.hash === hashes[0]);
+        docName =
+          commit && commit.message
+            ? commit.message
+            : `Doc: ${hashes[0].substring(0, 7)}`;
+      }
+
       const newItem = await localDb_createItem(
         docName,
         false,
-        parentId,
-        generatedMarkdown
+        targetFolder.id,
+        generatedMarkdown,
       );
 
       // Tell the sidebar/app that a new doc was created
@@ -161,10 +187,17 @@ Use clear headings, bullet points, and code blocks where appropriate. Do not inc
       setSelectedCommits(new Set());
       onClose();
       toast.success("Documentation generated successfully!");
-
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || "An error occurred during generation");
+      let errorMessage = error.message || "An error occurred during generation";
+      if (
+        errorMessage.includes("429 Too Many Requests") ||
+        errorMessage.includes("Quota exceeded")
+      ) {
+        errorMessage =
+          "Gemini API rate limit exceeded. Please wait a minute and try again. (Free tier token limit)";
+      }
+      toast.error(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -175,22 +208,34 @@ Use clear headings, bullet points, and code blocks where appropriate. Do not inc
       isOpen={isOpen}
       onClose={handleClose}
       showCloseButton={!isGenerating}
-      title={isGenerating ? "Generating Documentation" : "Generate Docs from Local Git"}
+      title={
+        isGenerating
+          ? "Generating Documentation"
+          : "Generate Docs from Local Git"
+      }
     >
       {isGenerating ? (
         <div className="flex flex-col items-center justify-center py-12 space-y-4">
-          <div className="text-primary animate-spin" style={{ animationDuration: "4000ms" }}>
+          <div
+            className="text-primary animate-spin"
+            style={{ animationDuration: "4000ms" }}
+          >
             <Loader />
           </div>
           <div className="text-center space-y-2">
-            <p className="text-textPrimary font-semibold text-lg">Generating Documentation...</p>
+            <p className="text-textPrimary font-semibold text-lg">
+              Generating Documentation...
+            </p>
             <p className="text-textSecondary text-sm max-w-xs mx-auto">
               Analyzing your local git commits and generating a summary.
             </p>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleGenerateDoc} className="space-y-4 flex flex-col max-h-[70vh]">
+        <form
+          onSubmit={handleGenerateDoc}
+          className="space-y-4 flex flex-col max-h-[70vh]"
+        >
           <div className="space-y-2 shrink-0">
             <label className="text-sm font-medium text-textSecondary block">
               Repository Path
@@ -221,7 +266,9 @@ Use clear headings, bullet points, and code blocks where appropriate. Do not inc
               </div>
             ) : commits.length === 0 ? (
               <div className="flex justify-center items-center h-full py-10 text-textSecondary">
-                {repoPath ? "No commits found in this repository." : "Please select a repository."}
+                {repoPath
+                  ? "No commits found in this repository."
+                  : "Please select a repository."}
               </div>
             ) : (
               <ul className="divide-y divide-border">
@@ -245,7 +292,10 @@ Use clear headings, bullet points, and code blocks where appropriate. Do not inc
                         <span className="font-mono text-xs text-textMuted bg-secondaryBg px-1.5 py-0.5 rounded">
                           {commit.hash.substring(0, 7)}
                         </span>
-                        <span className="text-sm font-medium text-textPrimary truncate" title={commit.message}>
+                        <span
+                          className="text-sm font-medium text-textPrimary truncate"
+                          title={commit.message}
+                        >
                           {commit.message}
                         </span>
                       </div>
@@ -267,7 +317,8 @@ Use clear headings, bullet points, and code blocks where appropriate. Do not inc
             className="w-full shrink-0 mt-4 flex items-center justify-center gap-2 py-2 bg-primary text-textPrimary rounded-md hover:bg-opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <AutoAwesome sx={{ fontSize: 18 }} />
-            Generate Docs {selectedCommits.size > 0 && `(${selectedCommits.size} selected)`}
+            Generate Docs{" "}
+            {selectedCommits.size > 0 && `(${selectedCommits.size} selected)`}
           </button>
         </form>
       )}
