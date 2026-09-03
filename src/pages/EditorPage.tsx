@@ -102,7 +102,6 @@ const EditorPage = () => {
     (state) => state.setCreatingTopLevelType,
   );
 
-  const drafts = useDocStore((state) => state.drafts);
   const fetchingId = useDocStore((state) => state.fetchingId);
   const generatingId = useDocStore((state) => state.generatingId);
   const setActiveDoc = useDocStore((state) => state.setActiveDoc);
@@ -153,7 +152,7 @@ const EditorPage = () => {
 
       if (isDirty) {
         state.setDraft(id, currentContent);
-        // Auto-save to local storage (desktop persistence)
+        // Auto-save to IndexedDB (desktop persistence)
         import("@/services/localDb").then(({ localDb_saveContent }) => {
           localDb_saveContent(id, currentContent);
         });
@@ -218,7 +217,13 @@ const EditorPage = () => {
 
   useEffect(() => {
     if (editor && activeDoc) {
-      const contentToSet = drafts[activeDoc.id] || activeDoc.content || "";
+      // Read the draft imperatively so this effect ONLY fires on doc switches
+      // or external content changes — NOT on every debounced save tick.
+      // Including drafts[activeDoc.id] as a reactive dep caused a loop:
+      //   type → debounce fires (500ms) → draft updated → effect re-fires →
+      //   setContent(stale 500ms snapshot) → characters erased + cursor jumps.
+      const draft = useDocStore.getState().drafts[activeDoc.id];
+      const contentToSet = draft || activeDoc.content || "";
       const currentEditorContent = JSON.stringify(editor.getJSON());
       const targetContent = JSON.stringify(contentToSet);
 
@@ -241,8 +246,8 @@ const EditorPage = () => {
   }, [
     activeDoc?.id,
     activeDoc?.content,
-    activeDoc?.id ? drafts[activeDoc.id] : undefined,
     editor,
+    // drafts[activeDoc.id] intentionally omitted — see comment above.
   ]);
 
   useEffect(() => {
@@ -268,12 +273,17 @@ const EditorPage = () => {
         <div className="relative inset-0 w-full h-full flex flex-col items-center justify-center overflow-hidden">
           <div className="relative z-10 flex flex-col items-center max-w-lg w-full px-6 animate-in fade-in slide-in-from-bottom-4 duration-1000">
             <div className="mb-12 text-center">
-              <img
-                src="/assets/penqwin-primary.png"
-                alt="Penqwin Logo"
-                className="w-60 h-auto mb-6 mx-auto opacity-10 select-none"
-                onError={(e) => { e.currentTarget.style.display = 'none' }}
-              />
+              <picture>
+                <source
+                  srcSet="/assets/images/penqwin-primary.webp"
+                  type="image/webp"
+                />
+                <img
+                  src="/assets/images/penqwin-primary.png"
+                  alt="Penqwin Logo"
+                  className="w-60 h-auto mb-6 mx-auto opacity-10 select-none"
+                />
+              </picture>
             </div>
 
             {sidebarData.length === 0 ? (

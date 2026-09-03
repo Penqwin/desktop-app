@@ -70,7 +70,7 @@ export const useDocStore = create<DocState>((set, get) => ({
 
     try {
       const { localDb_getContent } = await import("@/services/localDb");
-      const content = localDb_getContent(id);
+      const content = await localDb_getContent(id);
 
       // Update activeDoc and sidebarData with the fetched content
       const currentActive = get().activeDoc;

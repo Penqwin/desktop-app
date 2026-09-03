@@ -1,14 +1,12 @@
 /**
  * localDb.ts
- * 
- * Replaces all Next.js /api/* server routes with localStorage-backed
- * persistence for the desktop Electron app.
+ *
+ * IndexedDB-backed persistence for the desktop Electron app via Dexie.
+ * All functions are async — callers must await them.
  */
 
 import type { SidebarItem } from "@/types/sidebar";
-
-const SIDEBAR_KEY = "penqwin_sidebar";
-const CONTENT_PREFIX = "penqwin_content_";
+import { db, type SidebarRow } from "@/utils/db";
 
 // ─── ID Generation ───────────────────────────────────────────────────────────
 
@@ -19,31 +17,32 @@ function generateId(): number {
 
 // ─── Sidebar Data ─────────────────────────────────────────────────────────────
 
-export function localDb_getSidebarItems(): SidebarItem[] {
+export async function localDb_getSidebarItems(): Promise<SidebarItem[]> {
   try {
-    const raw = localStorage.getItem(SIDEBAR_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as SidebarItem[];
+    const rows = await db.sidebarItems.toArray();
+    // Rehydrate children array expected by the rest of the app
+    return rows.map((r) => ({ ...r, children: [] } as SidebarItem));
   } catch {
     return [];
   }
 }
 
-function localDb_saveSidebarItems(items: SidebarItem[]): void {
-  // Strip content from sidebar items before saving (content is stored separately)
-  const stripped = items.map(({ content: _c, ...rest }) => rest);
-  localStorage.setItem(SIDEBAR_KEY, JSON.stringify(stripped));
+async function localDb_saveSidebarItem(row: SidebarRow): Promise<void> {
+  await db.sidebarItems.put(row);
+}
+
+async function localDb_deleteSidebarItem(id: string): Promise<void> {
+  await db.sidebarItems.delete(id);
 }
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 
-export function localDb_createItem(
+export async function localDb_createItem(
   name: string,
   isFolder: boolean,
   parentId: number | string | null,
   content?: any,
-): SidebarItem {
-  const items = localDb_getSidebarItems();
+): Promise<SidebarItem> {
   const newItem: SidebarItem = {
     id: generateId(),
     name,
@@ -55,12 +54,12 @@ export function localDb_createItem(
     created_at: new Date().toISOString(),
   };
 
-  items.push(newItem);
-  localDb_saveSidebarItems(items);
+  const { children: _c, content: _ct, ...row } = newItem as any;
+  await localDb_saveSidebarItem({ ...row, id: String(newItem.id) });
 
   // Save content separately
   if (!isFolder && content !== undefined) {
-    localDb_saveContent(String(newItem.id), content);
+    await localDb_saveContent(String(newItem.id), content);
   }
 
   return newItem;
@@ -68,11 +67,10 @@ export function localDb_createItem(
 
 // ─── Read Content ─────────────────────────────────────────────────────────────
 
-export function localDb_getContent(id: string | number): any {
+export async function localDb_getContent(id: string | number): Promise<any> {
   try {
-    const raw = localStorage.getItem(CONTENT_PREFIX + id);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    const row = await db.docContents.get(String(id));
+    return row?.content ?? null;
   } catch {
     return null;
   }
@@ -80,52 +78,43 @@ export function localDb_getContent(id: string | number): any {
 
 // ─── Save Content ─────────────────────────────────────────────────────────────
 
-export function localDb_saveContent(id: string | number, content: any): void {
+export async function localDb_saveContent(
+  id: string | number,
+  content: any,
+): Promise<void> {
   if (content === null || content === undefined) {
-    localStorage.removeItem(CONTENT_PREFIX + id);
+    await db.docContents.delete(String(id));
     return;
   }
-  localStorage.setItem(CONTENT_PREFIX + id, JSON.stringify(content));
+  await db.docContents.put({ id: String(id), content });
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
-export function localDb_deleteItems(ids: (string | number)[]): void {
-  const items = localDb_getSidebarItems();
-  const idSet = new Set(ids.map(String));
-  const remaining = items.filter((item) => !idSet.has(String(item.id)));
-  localDb_saveSidebarItems(remaining);
-
-  // Also remove content for deleted file items
-  ids.forEach((id) => {
-    localStorage.removeItem(CONTENT_PREFIX + id);
+export async function localDb_deleteItems(
+  ids: (string | number)[],
+): Promise<void> {
+  const strIds = ids.map(String);
+  await db.transaction("rw", db.sidebarItems, db.docContents, async () => {
+    await db.sidebarItems.bulkDelete(strIds);
+    await db.docContents.bulkDelete(strIds);
   });
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────
 
-export function localDb_renameItem(
+export async function localDb_renameItem(
   id: string | number,
   newName: string,
-): void {
-  const items = localDb_getSidebarItems();
-  const updated = items.map((item) =>
-    String(item.id) === String(id) ? { ...item, name: newName } : item,
-  );
-  localDb_saveSidebarItems(updated);
+): Promise<void> {
+  await db.sidebarItems.update(String(id), { name: newName });
 }
 
 // ─── Move ─────────────────────────────────────────────────────────────────────
 
-export function localDb_moveItem(
+export async function localDb_moveItem(
   id: string | number,
   newParentId: string | number | null,
-): void {
-  const items = localDb_getSidebarItems();
-  const updated = items.map((item) =>
-    String(item.id) === String(id)
-      ? { ...item, parent_id: newParentId }
-      : item,
-  );
-  localDb_saveSidebarItems(updated);
+): Promise<void> {
+  await db.sidebarItems.update(String(id), { parent_id: newParentId });
 }

@@ -144,7 +144,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
     try {
       // Desktop: save content to local storage
       const { localDb_saveContent } = await import("@/services/localDb");
-      localDb_saveContent(id, content);
+      await localDb_saveContent(id, content);
 
       // Update the local in-memory state too
       updateSidebarData(id, { content });

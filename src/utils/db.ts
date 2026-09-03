@@ -1,21 +1,34 @@
-import Dexie, { type EntityTable } from 'dexie';
+/**
+ * db.ts
+ *
+ * Dexie (IndexedDB) database definition for the desktop app.
+ * Two object stores mirror the old localStorage split:
+ *   - sidebarItems  — flat list of sidebar nodes (no content)
+ *   - docContents   — TipTap JSON content keyed by document id
+ */
 
-export interface Document {
-  id: string;
-  title: string;
-  content: string; // Markdown or HTML
-  parentId: string | null;
-  createdAt: number;
-  updatedAt: number;
+import Dexie, { type EntityTable } from "dexie";
+import type { SidebarItem } from "@/types/sidebar";
+
+// ─── Table shapes ─────────────────────────────────────────────────────────────
+
+export type SidebarRow = Omit<SidebarItem, "content" | "children">;
+
+export interface DocContentRow {
+  id: string; // String(SidebarItem.id)
+  content: any; // Raw TipTap JSON
 }
 
-const db = new Dexie('EngDocDatabase') as Dexie & {
-  documents: EntityTable<Document, 'id'>;
+// ─── Database instance ────────────────────────────────────────────────────────
+
+const db = new Dexie("PenqwinDatabase") as Dexie & {
+  sidebarItems: EntityTable<SidebarRow, "id">;
+  docContents: EntityTable<DocContentRow, "id">;
 };
 
-// Schema declaration
 db.version(1).stores({
-  documents: 'id, parentId, title, createdAt, updatedAt'
+  sidebarItems: "id, parent_id",
+  docContents: "id",
 });
 
 export { db };

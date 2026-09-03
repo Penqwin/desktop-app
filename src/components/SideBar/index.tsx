@@ -199,10 +199,10 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const fetchSidebarData = () => {
+  const fetchSidebarData = async () => {
     try {
       setIsFetchingSidebarData(true);
-      const data = localDb_getSidebarItems();
+      const data = await localDb_getSidebarItems();
       setSidebarData(data || []);
     } catch (err) {
       console.error("Failed to load local sidebar", err);
@@ -390,7 +390,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       setCreatingItem({ name, parentId, type: isFolder ? "folder" : "file" });
 
       try {
-        const newEntity = localDb_createItem(name, isFolder, parentId);
+        const newEntity = await localDb_createItem(name, isFolder, parentId);
         const preparedNode = { ...newEntity, children: [] };
         setSidebarData([...sidebarData, preparedNode]);
 
@@ -452,7 +452,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         setIsDeleting(true);
         const idsToDelete = getDescendantIds(entityToDelete, sidebarData);
 
-        localDb_deleteItems(idsToDelete);
+        await localDb_deleteItems(idsToDelete);
         const idsSet = new Set(idsToDelete.map(String));
         setSidebarData(sidebarData.filter((item) => !idsSet.has(String(item.id))));
 
@@ -481,7 +481,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
   const handleEntityRename = useCallback(
     async (id: number | string, newName: string) => {
       try {
-        localDb_renameItem(id, newName);
+        await localDb_renameItem(id, newName);
         setSidebarData(
           sidebarData.map((item) =>
             item.id === id ? { ...item, name: newName } : item,
@@ -498,7 +498,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
   /** Refreshes sidebar data from the server, sets the active doc and fetches its content. */
   const refreshSidebarAndNavigate = useCallback(
     async (targetDocId: string | number) => {
-      const freshSidebar = localDb_getSidebarItems();
+      const freshSidebar = await localDb_getSidebarItems();
       const withChildren = freshSidebar.map((item: any) => ({
         ...item,
         children: [],
@@ -554,7 +554,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       const metadata = data.metadata;
 
       const genParentId = useDocStore.getState().generationParentId;
-      const newDoc = localDb_createItem(metadata.title, false, genParentId, documentation);
+      const newDoc = await localDb_createItem(metadata.title, false, genParentId, documentation);
 
       const preparedNode = { ...newDoc, children: [] };
       setSidebarData([...sidebarData, preparedNode]);
@@ -715,7 +715,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
     moveSidebarItem(draggedItem.id, newParentId);
 
     try {
-      localDb_moveItem(draggedItem.id, newParentId);
+      await localDb_moveItem(draggedItem.id, newParentId);
       toast.success(`Moved "${draggedItem.name}" successfully`);
     } catch (error: any) {
       console.error(error);
