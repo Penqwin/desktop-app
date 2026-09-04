@@ -182,3 +182,91 @@ export async function localDb_deduplicateFolders(): Promise<number> {
 
   return deletedCount;
 }
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+
+export interface SearchResult {
+  id: string | number;
+  name: string;
+  type: "file" | "folder";
+  organization_id: string | null;
+  snippet?: string;
+}
+
+/**
+ * Recursively extracts plain text from a TipTap JSON node.
+ */
+function extractTextFromTipTap(node: any): string {
+  if (!node) return "";
+  if (node.type === "text") return node.text || "";
+  if (node.content && Array.isArray(node.content)) {
+    return node.content.map(extractTextFromTipTap).join(" ");
+  }
+  return "";
+}
+
+export async function localDb_search(query: string): Promise<SearchResult[]> {
+  const activeOrgId = getActiveOrgId();
+  const lowerQuery = query.toLowerCase();
+
+  // 1. Fetch all sidebar items for this org
+  const items = await db.sidebarItems
+    .filter(row => row.organization_id === activeOrgId || row.organization_id === "local")
+    .toArray();
+
+  const results: SearchResult[] = [];
+
+  // 2. Fetch all document contents (could be optimized, but Dexie handles this well for client side)
+  const contents = await db.docContents.toArray();
+  const contentMap = new Map<string, string>();
+
+  // Extract raw text for each document
+  for (const doc of contents) {
+    let plainText = "";
+    if (typeof doc.content === "string") {
+      plainText = doc.content;
+    } else {
+      plainText = extractTextFromTipTap(doc.content);
+    }
+    contentMap.set(doc.id, plainText);
+  }
+
+  // 3. Search and score
+  for (const item of items) {
+    const isNameMatch = item.name.toLowerCase().includes(lowerQuery);
+    
+    let isContentMatch = false;
+    let snippet = "";
+
+    if (item.type === "file") {
+      const docText = contentMap.get(String(item.id)) || "";
+      const matchIndex = docText.toLowerCase().indexOf(lowerQuery);
+      if (matchIndex !== -1) {
+        isContentMatch = true;
+        // Extract a snippet (40 chars before and after)
+        const start = Math.max(0, matchIndex - 40);
+        const end = Math.min(docText.length, matchIndex + query.length + 40);
+        snippet = (start > 0 ? "..." : "") + docText.slice(start, end).trim() + (end < docText.length ? "..." : "");
+      }
+    }
+
+    if (isNameMatch || isContentMatch) {
+      results.push({
+        id: item.id,
+        name: item.name,
+        type: item.type as "file" | "folder",
+        organization_id: item.organization_id,
+        snippet: isContentMatch && !isNameMatch ? snippet : (isContentMatch ? snippet : undefined)
+      });
+    }
+  }
+
+  // 4. Sort results (Name matches first, then content matches)
+  return results.sort((a, b) => {
+    const aNameMatch = a.name.toLowerCase().includes(lowerQuery);
+    const bNameMatch = b.name.toLowerCase().includes(lowerQuery);
+    if (aNameMatch && !bNameMatch) return -1;
+    if (!aNameMatch && bNameMatch) return 1;
+    return 0;
+  });
+}

@@ -11,17 +11,27 @@ import TextSnippetIcon from "@mui/icons-material/TextSnippetOutlined";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import { useUser } from "@/core/auth/UserContext";
 import { useDebounce } from "@/hooks/useDebounce";
-
-interface SearchResult {
-  id: string | number;
-  name: string;
-  type: "file" | "folder";
-  organization_id: number | null;
-}
+import { localDb_search, type SearchResult } from "@/services/localDb";
 
 interface GlobalSearchProps {
   open: boolean;
   onClose: () => void;
+}
+
+function HighlightedText({ text, highlight }: { text: string; highlight: string }) {
+  if (!highlight.trim()) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === highlight.toLowerCase() ? (
+          <span key={i} className="text-primary font-bold bg-primary/10 rounded px-0.5">{part}</span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
 }
 
 export default function GlobalSearch({ open, onClose }: GlobalSearchProps) {
@@ -86,11 +96,7 @@ export default function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       }
       setLoading(true);
       try {
-        const res = await fetch(
-          `/api/search?q=${encodeURIComponent(debouncedQuery)}&orgId=${organization?.id || ""}`,
-        );
-        if (!res.ok) throw new Error("Search failed");
-        const data = await res.json();
+        const data = await localDb_search(debouncedQuery);
         setResults(data);
       } catch (err) {
         console.error(err);
@@ -182,7 +188,16 @@ export default function GlobalSearch({ open, onClose }: GlobalSearchProps) {
                     fontSize="small"
                   />
                 )}
-                <div className="text-sm font-medium">{item.name}</div>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate text-gray-200">
+                    <HighlightedText text={item.name} highlight={debouncedQuery} />
+                  </div>
+                  {item.snippet && (
+                    <div className="text-xs text-gray-400 mt-1 truncate">
+                      <HighlightedText text={item.snippet} highlight={debouncedQuery} />
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
