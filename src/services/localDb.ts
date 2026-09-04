@@ -43,11 +43,15 @@ export async function localDb_createItem(
   parentId: number | string | null,
   content?: any,
 ): Promise<SidebarItem> {
+  // Always normalize parent_id to string (or null) so that lookups via
+  // String(item.parent_id) === String(currentParentId) are always consistent.
+  const normalizedParentId = parentId != null ? String(parentId) : null;
+
   const newItem: SidebarItem = {
     id: generateId(),
     name,
     type: isFolder ? "folder" : "file",
-    parent_id: parentId ?? null,
+    parent_id: normalizedParentId,
     user_id: "local",
     organization_id: "local",
     children: [],
@@ -116,5 +120,55 @@ export async function localDb_moveItem(
   id: string | number,
   newParentId: string | number | null,
 ): Promise<void> {
-  await db.sidebarItems.update(String(id), { parent_id: newParentId });
+  await db.sidebarItems.update(String(id), { parent_id: newParentId != null ? String(newParentId) : null });
+}
+
+// ─── Deduplicate Folders ──────────────────────────────────────────────────────
+
+/**
+ * Scans the DB for sibling folders with the same name and parent_id, which
+ * can arise when the bootstrap process creates duplicates due to a type
+ * mismatch in the parent_id comparison (number vs. string).
+ *
+ * Strategy: keep the folder with the smallest id (oldest), re-parent all
+ * children of the duplicates to the kept folder, then delete the duplicates.
+ */
+export async function localDb_deduplicateFolders(): Promise<number> {
+  const rows = await db.sidebarItems.toArray();
+  const folders = rows.filter((r) => (r as any).type === "folder");
+
+  // Group by (name, parent_id) — both normalized to strings
+  const groups = new Map<string, typeof rows>();
+  for (const folder of folders) {
+    const key = `${folder.name}||${String((folder as any).parent_id ?? "")}` ;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(folder);
+  }
+
+  let deletedCount = 0;
+
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+
+    // Sort by id ascending — keep the oldest (smallest numeric id)
+    group.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const [keep, ...dupes] = group;
+    const keepId = String(keep.id);
+    const dupeIds = dupes.map((d) => String(d.id));
+
+    // Re-parent any children of the duplicate folders to the kept folder
+    for (const dupeId of dupeIds) {
+      const children = rows.filter((r) => String((r as any).parent_id) === dupeId);
+      for (const child of children) {
+        await db.sidebarItems.update(String(child.id), { parent_id: keepId });
+      }
+    }
+
+    // Delete the duplicate folders (and their (now empty) content rows)
+    await db.sidebarItems.bulkDelete(dupeIds);
+    await db.docContents.bulkDelete(dupeIds);
+    deletedCount += dupeIds.length;
+  }
+
+  return deletedCount;
 }

@@ -43,6 +43,7 @@ import {
   localDb_deleteItems,
   localDb_renameItem,
   localDb_moveItem,
+  localDb_deduplicateFolders,
 } from "@/services/localDb";
 // icons
 import GearIcon from "@mui/icons-material/SettingsOutlined";
@@ -202,6 +203,8 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
   const fetchSidebarData = async () => {
     try {
       setIsFetchingSidebarData(true);
+      // Clean up duplicate folders created by the now-fixed parent_id type-mismatch bug
+      await localDb_deduplicateFolders();
       const data = await localDb_getSidebarItems();
       setSidebarData(data || []);
     } catch (err) {

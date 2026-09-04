@@ -133,11 +133,35 @@ export default function GenerateDocModal({
     setIsGenerating(true);
     setBootstrapProgress({ current: 0, total: 0, file: "Scanning directory..." });
 
+    // Files whose names (case-insensitive) should never be documented.
+    // These are typically project meta-files, not source code.
+    const SKIP_FILE_NAMES = new Set([
+      "readme.md", "readme.txt", "readme",
+      "changelog.md", "changelog.txt", "changelog",
+      "license", "license.md", "license.txt",
+      "contributing.md", "contributing.txt",
+      "code_of_conduct.md",
+      "authors", "authors.md",
+      "notice", "notice.md",
+      "makefile",
+      ".gitignore", ".gitattributes", ".editorconfig",
+      ".eslintignore", ".prettierignore",
+      "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+      "bun.lockb",
+    ]);
+
     try {
       // 1. Scan directory
       const dirRes = await api.readDirRecursive(repoPath);
       if (!dirRes.success) throw new Error(dirRes.error || "Failed to scan directory");
-      const files: string[] = dirRes.data;
+      const allFiles: string[] = dirRes.data;
+
+      // Filter out irrelevant files before processing
+      const files = allFiles.filter((filePath) => {
+        const fileName = filePath.split(/[\\/]/).pop() || "";
+        return !SKIP_FILE_NAMES.has(fileName.toLowerCase());
+      });
+
       if (files.length === 0) throw new Error("No valid files found in directory");
 
       // 2. Create Code Reference root folder
@@ -152,9 +176,11 @@ export default function GenerateDocModal({
       setBootstrapProgress({ current: 0, total: files.length, file: "Starting generation..." });
 
       // 3. Process each file
+      let processed = 0;
       for (let i = 0; i < files.length; i++) {
         const filePath = files[i];
-        setBootstrapProgress({ current: i + 1, total: files.length, file: filePath });
+        processed++;
+        setBootstrapProgress({ current: processed, total: files.length, file: filePath });
 
         // Read file content
         const absolutePath = repoPath + "/" + filePath;
@@ -202,7 +228,13 @@ export default function GenerateDocModal({
           // Look for existing folder in db (note: we re-fetch to ensure we have latest)
           const allItems = await localDb_getSidebarItems();
           let existing = allItems.find(
-            (item) => item.type === "folder" && item.name === part && item.parent_id === currentParentId
+            (item) =>
+              item.type === "folder" &&
+              item.name === part &&
+              // Normalize both sides to string — parent_id is stored as a string in
+              // IndexedDB but currentParentId may be a number from generateId(),
+              // so strict equality would silently fail and create duplicate folders.
+              String(item.parent_id) === String(currentParentId)
           );
           if (!existing) {
             existing = await localDb_createItem(part, true, currentParentId);

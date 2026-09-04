@@ -13,19 +13,25 @@ export const buildTree = (items: any[]) => {
     return a.name.localeCompare(b.name);
   });
 
-  // 1. Create a map of all items
+  // 1. Create a map of all items, keyed by stringified id to avoid
+  //    number/string type-mismatch (ids are numbers in memory but stored
+  //    as strings in IndexedDB, so parent_id lookups would silently fail).
   sortedItems.forEach((item) => {
-    map[item.id] = { ...item, children: [] };
+    map[String(item.id)] = { ...item, children: [] };
   });
 
   // 2. Link children to parents
   sortedItems.forEach((item) => {
-    if (item.parent_id && map[item.parent_id]) {
-      map[item.parent_id].children.push(map[item.id]);
-    } else if (!item.parent_id) {
+    const parentKey = item.parent_id != null ? String(item.parent_id) : null;
+    if (parentKey && map[parentKey]) {
+      map[parentKey].children.push(map[String(item.id)]);
+    } else if (!parentKey) {
       // If no parent_id, it's a root item
-      tree.push(map[item.id]);
+      tree.push(map[String(item.id)]);
     }
+    // Note: if parentKey is set but the parent doesn't exist in the map,
+    // the item is intentionally omitted (orphaned record) rather than
+    // promoted to the root, which previously caused duplication.
   });
 
   // 3. Post-sort: apply created_at DESC ordering to the children of any
