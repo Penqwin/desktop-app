@@ -49,6 +49,38 @@ app.on('window-all-closed', () => {
 // Basic IPC handler for testing
 ipcMain.handle('ping', () => 'pong');
 
+// --- Parse changed files from a raw git diff string ---
+// Returns { added: string[], modified: string[], deleted: string[] }
+ipcMain.handle('get-changed-files-from-diff', (_event, diffText: string) => {
+  try {
+    const added: string[] = [];
+    const modified: string[] = [];
+    const deleted: string[] = [];
+
+    // Split into per-file diff blocks
+    const blocks = diffText.split(/^diff --git /m).slice(1);
+
+    for (const block of blocks) {
+      // Extract file path from "a/... b/..." header
+      const headerMatch = block.match(/^a\/.+ b\/(.+)$/m);
+      if (!headerMatch) continue;
+      const filePath = headerMatch[1].trim();
+
+      if (/^new file mode/m.test(block)) {
+        added.push(filePath);
+      } else if (/^deleted file mode/m.test(block)) {
+        deleted.push(filePath);
+      } else {
+        modified.push(filePath);
+      }
+    }
+
+    return { success: true, data: { added, modified, deleted } };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 // --- Git IPC Handlers ---
 
 ipcMain.handle('git-status', async () => {

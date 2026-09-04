@@ -7,11 +7,182 @@ import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import {
   localDb_createItem,
   localDb_getSidebarItems,
+  localDb_saveContent,
 } from "@/services/localDb";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const electronAPI = (window as any).electronAPI;
+
+// ─── Code Reference Sync ──────────────────────────────────────────────────────
+
+/**
+ * After a changeset summary is generated, keep the Code Reference folder in
+ * sync with the actual codebase changes:
+ *   - Modified files  → regenerate and overwrite the existing doc in-place
+ *   - Added files     → generate and create a new doc (+ any missing folders)
+ *   - Deleted files   → skip (preserve the historical reference doc)
+ *
+ * Guard: if no "Code Reference" root folder exists the function is a no-op.
+ */
+async function syncCodeReference(
+  api: any,
+  apiKey: string,
+  diff: string,
+  repoPath: string,
+): Promise<void> {
+  // 1. Parse which files were touched in the diff
+  const parseRes = await api.getChangedFilesFromDiff(diff);
+  if (!parseRes.success) {
+    console.warn("Could not parse changed files from diff:", parseRes.error);
+    return;
+  }
+  const { added, modified, deleted: _deleted } = parseRes.data as {
+    added: string[];
+    modified: string[];
+    deleted: string[];
+  };
+
+  // Files whose names should never be documented (same skip list as bootstrap)
+  const SKIP_FILE_NAMES = new Set([
+    "readme.md", "readme.txt", "readme",
+    "changelog.md", "changelog.txt", "changelog",
+    "license", "license.md", "license.txt",
+    "contributing.md", "contributing.txt",
+    "code_of_conduct.md",
+    "authors", "authors.md",
+    "notice", "notice.md",
+    "makefile",
+    ".gitignore", ".gitattributes", ".editorconfig",
+    ".eslintignore", ".prettierignore",
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+    "bun.lockb",
+  ]);
+
+  const filesToSync = [...modified, ...added].filter((fp) => {
+    const name = fp.split(/[\\/]/).pop() || "";
+    return !SKIP_FILE_NAMES.has(name.toLowerCase());
+  });
+
+  if (filesToSync.length === 0) return;
+
+  // 2. Guard: Code Reference root must exist (i.e. bootstrap was run)
+  const allItems = await localDb_getSidebarItems();
+  const codeRefRoot = allItems.find(
+    (item) => item.type === "folder" && item.name === "Code Reference" && item.parent_id === null,
+  );
+  if (!codeRefRoot) return; // Not bootstrapped — nothing to sync
+
+  const { toast } = await import("sonner");
+  const toastId = toast.loading(`Syncing Code Reference (${filesToSync.length} file${filesToSync.length > 1 ? "s" : ""})…`);
+
+  let updatedCount = 0;
+  let addedCount = 0;
+
+  for (let i = 0; i < filesToSync.length; i++) {
+    const filePath = filesToSync[i];
+    const parts = filePath.split(/[\\/]/);
+    const fileName = parts[parts.length - 1];
+
+    try {
+      // Read current file content from disk
+      const absolutePath = repoPath + "/" + filePath;
+      const fileRes = await api.readFile(absolutePath);
+      if (!fileRes.success || !fileRes.data?.trim()) {
+        console.warn("Skipping unreadable/empty file:", filePath);
+        continue;
+      }
+
+      // Regenerate doc via Gemini (bootstrap prompt = file-level reference)
+      const genRes = await api.generateDoc({
+        apiKey,
+        userMessage: `File: ${filePath}\n\n` + fileRes.data,
+        isBootstrap: true,
+      });
+      if (!genRes.success) throw new Error(genRes.error);
+      const newMarkdown = genRes.data;
+
+      // 3. Find the existing Code Reference doc by traversing the folder path
+      const freshItems = await localDb_getSidebarItems();
+
+      let currentParentId: string | number = codeRefRoot.id;
+      let existingDoc: typeof freshItems[0] | undefined;
+
+      // Walk folder segments to find the doc's parent folder
+      for (let s = 0; s < parts.length - 1; s++) {
+        const segment = parts[s];
+        const folder = freshItems.find(
+          (item) =>
+            item.type === "folder" &&
+            item.name === segment &&
+            String(item.parent_id) === String(currentParentId),
+        );
+        if (!folder) {
+          // Folder doesn't exist → this is a new path, build it from here
+          currentParentId = await ensureFolderPath(parts.slice(0, s + 1), codeRefRoot.id);
+          break;
+        }
+        currentParentId = folder.id;
+      }
+
+      // Look for an existing doc with this filename inside the resolved parent
+      const finalItems = await localDb_getSidebarItems();
+      existingDoc = finalItems.find(
+        (item) =>
+          item.type === "file" &&
+          item.name === fileName &&
+          String(item.parent_id) === String(currentParentId),
+      );
+
+      if (existingDoc) {
+        // Update in-place
+        await localDb_saveContent(existingDoc.id, newMarkdown);
+        updatedCount++;
+      } else {
+        // Create new doc under the resolved parent
+        await localDb_createItem(fileName, false, currentParentId, newMarkdown);
+        addedCount++;
+      }
+    } catch (err: any) {
+      console.warn(`Code Reference sync: failed for ${filePath}:`, err.message);
+    }
+
+    // Pace requests to respect Gemini free-tier rate limits
+    if (i < filesToSync.length - 1) await sleep(4000);
+  }
+
+  const summaryParts: string[] = [];
+  if (updatedCount > 0) summaryParts.push(`${updatedCount} updated`);
+  if (addedCount > 0) summaryParts.push(`${addedCount} added`);
+  toast.success(`Code Reference synced — ${summaryParts.join(", ")}`, { id: toastId });
+}
+
+/**
+ * Ensures all folder segments in `pathParts` exist under `rootId`,
+ * creating any missing ones. Returns the id of the deepest folder.
+ */
+async function ensureFolderPath(
+  pathParts: string[],
+  rootId: string | number,
+): Promise<string | number> {
+  let currentParentId: string | number = rootId;
+
+  for (const part of pathParts) {
+    const items = await localDb_getSidebarItems();
+    let folder = items.find(
+      (item) =>
+        item.type === "folder" &&
+        item.name === part &&
+        String(item.parent_id) === String(currentParentId),
+    );
+    if (!folder) {
+      folder = await localDb_createItem(part, true, currentParentId);
+    }
+    currentParentId = folder.id;
+  }
+
+  return currentParentId;
+}
 
 interface GenerateDocModalProps {
   isOpen: boolean;
@@ -347,6 +518,12 @@ export default function GenerateDocModal({
       setSelectedCommits(new Set());
       onClose();
       toast.success("Documentation generated successfully!");
+
+      // ── Code Reference sync (non-blocking, runs after modal closes) ──────
+      // Fire-and-forget: parse which files changed and sync Code Reference.
+      syncCodeReference(api, apiKey, diff, repoPath).catch((err) =>
+        console.warn("Code Reference sync failed:", err)
+      );
     } catch (error: any) {
       console.error(error);
       let errorMessage = error.message || "An error occurred during generation";
