@@ -15,11 +15,21 @@ function generateId(): number {
   return _nextId++;
 }
 
+// ─── Workspace Isolation ────────────────────────────────────────────────────────
+
+function getActiveOrgId(): string {
+  if (typeof window === "undefined") return "local";
+  return localStorage.getItem("penqwin_active_org_id") || "local";
+}
+
 // ─── Sidebar Data ─────────────────────────────────────────────────────────────
 
 export async function localDb_getSidebarItems(): Promise<SidebarItem[]> {
   try {
-    const rows = await db.sidebarItems.toArray();
+    const activeOrgId = getActiveOrgId();
+    const rows = await db.sidebarItems
+      .filter(row => row.organization_id === activeOrgId || row.organization_id === "local")
+      .toArray();
     // Rehydrate children array expected by the rest of the app
     return rows.map((r) => ({ ...r, children: [] } as SidebarItem));
   } catch {
@@ -53,7 +63,7 @@ export async function localDb_createItem(
     type: isFolder ? "folder" : "file",
     parent_id: normalizedParentId,
     user_id: "local",
-    organization_id: "local",
+    organization_id: getActiveOrgId(),
     children: [],
     created_at: new Date().toISOString(),
   };

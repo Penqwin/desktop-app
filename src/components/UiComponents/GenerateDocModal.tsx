@@ -422,7 +422,7 @@ export default function GenerateDocModal({
         }
       }
 
-      onSuccess({}, []);
+      onSuccess({ isBootstrap: true }, []);
       onClose();
       toast.success("Repository bootstrapped successfully!");
     } catch (error: any) {
