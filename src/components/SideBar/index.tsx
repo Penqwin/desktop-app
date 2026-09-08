@@ -806,12 +806,12 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         <a href="/" className="text-primary text-2xl font-medium select-none">
           <picture>
             <img
-              src="/assets/images/penqwin-primary.webp"
-              className="w-16"
+              src="./assets/images/penqwin-primary.webp"
+              className="w-32"
               alt="Penqwin"
             />
             <source
-              srcSet="/assets/images/penqwin-primary.png"
+              srcSet="./assets/images/penqwin-primary.png"
               type="image/png"
             />
           </picture>
