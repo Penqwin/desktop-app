@@ -9,7 +9,11 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useSidebarClose } from "@/layouts/DashboardLayout";
-import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
+import type {
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+} from "@dnd-kit/core";
 import {
   DndContext,
   PointerSensor,
@@ -217,7 +221,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
   useEffect(() => {
     setMounted(true);
     fetchSidebarData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -415,13 +419,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         setCreatingItem(null);
       }
     },
-    [
-      sidebarData,
-      setSidebarData,
-      setActiveDoc,
-      navigate,
-      setCreatingItem,
-    ],
+    [sidebarData, setSidebarData, setActiveDoc, navigate, setCreatingItem],
   );
 
   const handleEntityAdditon = useCallback(
@@ -457,7 +455,9 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
 
         await localDb_deleteItems(idsToDelete);
         const idsSet = new Set(idsToDelete.map(String));
-        setSidebarData(sidebarData.filter((item) => !idsSet.has(String(item.id))));
+        setSidebarData(
+          sidebarData.filter((item) => !idsSet.has(String(item.id))),
+        );
 
         if (activeDoc && idsSet.has(String(activeDoc.id))) {
           setActiveDoc(null);
@@ -557,12 +557,19 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       const metadata = data.metadata;
 
       const genParentId = useDocStore.getState().generationParentId;
-      const newDoc = await localDb_createItem(metadata.title, false, genParentId, documentation);
+      const newDoc = await localDb_createItem(
+        metadata.title,
+        false,
+        genParentId,
+        documentation,
+      );
 
       const preparedNode = { ...newDoc, children: [] };
       setSidebarData([...sidebarData, preparedNode]);
 
-      const currentDocId = new URLSearchParams(window.location.search).get("doc");
+      const currentDocId = new URLSearchParams(window.location.search).get(
+        "doc",
+      );
       if (currentDocId === "generating") {
         setActiveDoc(preparedNode);
         navigate(`/?doc=${preparedNode.id}`);
@@ -803,11 +810,11 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       {/* Mobile close button + logo row */}
       <div className="flex items-center justify-between flex-shrink-0">
         {/* Penqwin logo */}
-        <a href="/" className="text-primary text-2xl font-medium select-none">
+        <div className="text-primary text-2xl font-medium select-none">
           <picture>
             <img
               src="./assets/images/penqwin-primary.webp"
-              className="w-32"
+              className="w-16"
               alt="Penqwin"
             />
             <source
@@ -815,7 +822,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
               type="image/png"
             />
           </picture>
-        </a>
+        </div>
 
         {/* Close button — mobile only */}
         {onClose && (
