@@ -1,5 +1,5 @@
 import { StrictMode } from 'react'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createHashRouter, RouterProvider } from 'react-router-dom'
 import DashboardLayout from '@/layouts/DashboardLayout'
 import EditorPage from '@/pages/EditorPage'
 import SettingsPage from '@/pages/SettingsPage'
@@ -11,7 +11,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 
 import { Toaster } from 'sonner'
 
-const router = createBrowserRouter([
+const router = createHashRouter([
   {
     path: "/",
     element: <DashboardLayout />,

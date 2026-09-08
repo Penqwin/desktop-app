@@ -9,7 +9,7 @@
     "dev:electron": "wait-on tcp:5173 && tsc -p tsconfig.electron.json && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
     "dev": "concurrently -k \"npm run dev:vite\" \"npm run dev:electron\"",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "build": "tsc -b && vite build && npm run build:electron",
+    "build": "vite build && npm run build:electron",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
@@ -18,7 +18,8 @@
   },
   "build": {
     "appId": "com.engdoc.desktopapp",
-    "productName": "EngDoc",
+    "productName": "Penqwin",
+    "icon": "public/assets/images/icon-512x512.png",
     "directories": {
       "output": "dist-apps"
     },
@@ -28,10 +29,12 @@
       "package.json"
     ],
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "public/assets/images/icon-512x512.png"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/assets/images/icon-512x512.png"
     },
     "nsis": {
       "oneClick": false,
