@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useDocStore } from "@/store/useDocStore";
 import { useSidebarOpen } from "@/layouts/DashboardLayout";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { docUrl } from "@/lib/routes";
 import { toast } from "sonner";
 // icons
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
@@ -62,7 +63,7 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
     // ── UNIFIED PATH: always navigate to the new Changeset Summary ───────────
     if (data.summaryDocId) {
       await fetchDocContent(data.summaryDocId);
-      navigate(`/?doc=${data.summaryDocId}`);
+      navigate(docUrl(data.summaryDocId));
       return;
     }
 

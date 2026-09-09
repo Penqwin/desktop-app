@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ROUTES } from "@/lib/routes";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteIcon from "@mui/icons-material/Delete";
 import BusinessIcon from "@mui/icons-material/Business";
@@ -77,7 +78,7 @@ const SettingsPage = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate(ROUTES.HOME)}
             className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center justify-center"
             title="Go back"
           >

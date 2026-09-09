@@ -1,9 +1,10 @@
 import { StrictMode } from 'react'
-import { createHashRouter, RouterProvider } from 'react-router-dom'
+import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom'
 import DashboardLayout from '@/layouts/DashboardLayout'
 import EditorPage from '@/pages/EditorPage'
 import SettingsPage from '@/pages/SettingsPage'
 import CreateOrgPage from '@/pages/CreateOrgPage'
+import { ROUTES } from '@/lib/routes'
 import './App.css'
 
 import { UserProvider } from '@/core/auth/UserContext'
@@ -13,18 +14,23 @@ import { Toaster } from 'sonner'
 
 const router = createHashRouter([
   {
-    path: "/",
+    path: ROUTES.HOME,
     element: <DashboardLayout />,
     children: [
       { index: true, element: <EditorPage /> },
     ],
   },
   {
-    path: "/settings",
+    // /dashboard is a supported alias — preserve any ?doc= search params via Navigate
+    path: ROUTES.DASHBOARD,
+    element: <Navigate to={ROUTES.HOME} replace />,
+  },
+  {
+    path: ROUTES.SETTINGS,
     element: <SettingsPage />
   },
   {
-    path: "/create-org",
+    path: ROUTES.CREATE_ORG,
     element: <CreateOrgPage />
   }
 ])

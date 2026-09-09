@@ -8,6 +8,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { ROUTES, docUrl } from "@/lib/routes";
 import { useSidebarClose } from "@/layouts/DashboardLayout";
 import type {
   DragEndEvent,
@@ -403,7 +404,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
 
         if (!isFolder) {
           setActiveDoc(preparedNode);
-          navigate(`/?doc=${preparedNode.id}`);
+          navigate(docUrl(preparedNode.id));
         }
         toast.success(
           `${isFolder ? "Folder" : "Document"} created successfully!`,
@@ -461,7 +462,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
 
         if (activeDoc && idsSet.has(String(activeDoc.id))) {
           setActiveDoc(null);
-          navigate("/");
+          navigate(ROUTES.HOME);
         }
 
         toast.success("Item deleted successfully");
@@ -516,7 +517,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         setActiveDoc(targetDoc);
         await fetchDocContent(targetDoc.id);
       }
-      navigate(`/?doc=${targetDocId}`);
+      navigate(docUrl(targetDocId));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [organization?.id],
@@ -572,7 +573,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
       );
       if (currentDocId === "generating") {
         setActiveDoc(preparedNode);
-        navigate(`/?doc=${preparedNode.id}`);
+        navigate(docUrl(preparedNode.id));
       }
 
       toast.success("Documentation generated and saved!");
@@ -583,7 +584,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
         "doc",
       );
       if (currentDocId === "generating") {
-        navigate("/dashboard");
+        navigate(ROUTES.HOME);
       }
     }
   };
@@ -916,7 +917,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
                 <div className="mt-2 pt-2 border-t border-border">
                   <button
                     onClick={() => {
-                      navigate("/create-org");
+                      navigate(ROUTES.CREATE_ORG);
                       setIsOrgDropdownOpen(false);
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-border/40 transition-colors text-left text-textSecondary hover:text-textPrimary"
@@ -928,7 +929,7 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
                   </button>
                   <button
                     onClick={() => {
-                      navigate("/settings");
+                      navigate(ROUTES.SETTINGS);
                       setIsOrgDropdownOpen(false);
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-border/40 transition-colors text-left text-textSecondary hover:text-textPrimary"

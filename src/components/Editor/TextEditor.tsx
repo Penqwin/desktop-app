@@ -52,8 +52,11 @@ const TextEditor = ({ editor }: any) => {
               break;
             }
           }
-
-          setIsInsideTable(insideTable);
+          // Defer the React state update to avoid interrupting ProseMirror's transaction
+          // Synchronous state updates here cause severe typing glitches on Enter or Space
+          requestAnimationFrame(() => {
+            setIsInsideTable(insideTable);
+          });
         }}
       >
         {!isInsideTable && (

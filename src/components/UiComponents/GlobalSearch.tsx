@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { docUrl } from "@/lib/routes";
 import {
   Dialog,
   DialogContent,
@@ -112,7 +113,7 @@ export default function GlobalSearch({ open, onClose }: GlobalSearchProps) {
 
   const handleResultClick = (result: SearchResult) => {
     if (result.type === "file") {
-      navigate(`/dashboard?doc=${result.id}`);
+      navigate(docUrl(result.id));
       onClose();
     }
     // Could also handle folder navigation if needed

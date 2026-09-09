@@ -20,8 +20,9 @@
     "appId": "com.engdoc.desktopapp",
     "productName": "Penqwin",
     "icon": "public/assets/images/icon-512x512.png",
+    "asar": false,
     "directories": {
-      "output": "dist-apps"
+      "output": "release-build"
     },
     "files": [
       "dist/**/*",

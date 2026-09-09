@@ -1,3 +1,6 @@
+/** Root-level system folders whose children are sorted newest-first. */
+const FOLDERS_SORTED_BY_DATE = new Set(["Changelog", "Changeset Summary"]);
+
 export const buildTree = (items: any[]) => {
   const map: Record<string, any> = {};
   const tree: any[] = [];
@@ -35,12 +38,13 @@ export const buildTree = (items: any[]) => {
   });
 
   // 3. Post-sort: apply created_at DESC ordering to the children of any
-  //    root-level "Changeset Summary" folder. Doing this after tree construction
-  //    avoids the transitive-comparator issue entirely.
+  //    root-level system folder that groups time-ordered docs (Changelog,
+  //    Changeset Summary). Doing this after tree construction avoids the
+  //    transitive-comparator issue entirely.
   tree.forEach((rootItem) => {
     if (
       rootItem.type === "folder" &&
-      rootItem.name === "Changeset Summary" &&
+      FOLDERS_SORTED_BY_DATE.has(rootItem.name) &&
       rootItem.children?.length > 1
     ) {
       rootItem.children.sort((a: any, b: any) => {
@@ -52,4 +56,4 @@ export const buildTree = (items: any[]) => {
   });
 
   return tree;
-};
+};
