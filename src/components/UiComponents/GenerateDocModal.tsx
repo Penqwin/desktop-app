@@ -37,7 +37,11 @@ async function syncCodeReference(
     console.warn("Could not parse changed files from diff:", parseRes.error);
     return;
   }
-  const { added, modified, deleted: _deleted } = parseRes.data as {
+  const {
+    added,
+    modified,
+    deleted: _deleted,
+  } = parseRes.data as {
     added: string[];
     modified: string[];
     deleted: string[];
@@ -45,17 +49,31 @@ async function syncCodeReference(
 
   // Files whose names should never be documented (same skip list as bootstrap)
   const SKIP_FILE_NAMES = new Set([
-    "readme.md", "readme.txt", "readme",
-    "changelog.md", "changelog.txt", "changelog",
-    "license", "license.md", "license.txt",
-    "contributing.md", "contributing.txt",
+    "readme.md",
+    "readme.txt",
+    "readme",
+    "changelog.md",
+    "changelog.txt",
+    "changelog",
+    "license",
+    "license.md",
+    "license.txt",
+    "contributing.md",
+    "contributing.txt",
     "code_of_conduct.md",
-    "authors", "authors.md",
-    "notice", "notice.md",
+    "authors",
+    "authors.md",
+    "notice",
+    "notice.md",
     "makefile",
-    ".gitignore", ".gitattributes", ".editorconfig",
-    ".eslintignore", ".prettierignore",
-    "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+    ".gitignore",
+    ".gitattributes",
+    ".editorconfig",
+    ".eslintignore",
+    ".prettierignore",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
     "bun.lockb",
   ]);
 
@@ -69,12 +87,17 @@ async function syncCodeReference(
   // 2. Guard: Code Reference root must exist (i.e. bootstrap was run)
   const allItems = await localDb_getSidebarItems();
   const codeRefRoot = allItems.find(
-    (item) => item.type === "folder" && item.name === "Code Reference" && item.parent_id === null,
+    (item) =>
+      item.type === "folder" &&
+      item.name === "Code Reference" &&
+      item.parent_id === null,
   );
   if (!codeRefRoot) return; // Not bootstrapped — nothing to sync
 
   const { toast } = await import("sonner");
-  const toastId = toast.loading(`Syncing Code Reference (${filesToSync.length} file${filesToSync.length > 1 ? "s" : ""})…`);
+  const toastId = toast.loading(
+    `Syncing Code Reference (${filesToSync.length} file${filesToSync.length > 1 ? "s" : ""})…`,
+  );
 
   let updatedCount = 0;
   let addedCount = 0;
@@ -106,7 +129,7 @@ async function syncCodeReference(
       const freshItems = await localDb_getSidebarItems();
 
       let currentParentId: string | number = codeRefRoot.id;
-      let existingDoc: typeof freshItems[0] | undefined;
+      let existingDoc: (typeof freshItems)[0] | undefined;
 
       // Walk folder segments to find the doc's parent folder
       for (let s = 0; s < parts.length - 1; s++) {
@@ -119,7 +142,10 @@ async function syncCodeReference(
         );
         if (!folder) {
           // Folder doesn't exist → this is a new path, build it from here
-          currentParentId = await ensureFolderPath(parts.slice(0, s + 1), codeRefRoot.id);
+          currentParentId = await ensureFolderPath(
+            parts.slice(0, s + 1),
+            codeRefRoot.id,
+          );
           break;
         }
         currentParentId = folder.id;
@@ -154,7 +180,9 @@ async function syncCodeReference(
   const summaryParts: string[] = [];
   if (updatedCount > 0) summaryParts.push(`${updatedCount} updated`);
   if (addedCount > 0) summaryParts.push(`${addedCount} added`);
-  toast.success(`Code Reference synced — ${summaryParts.join(", ")}`, { id: toastId });
+  toast.success(`Code Reference synced — ${summaryParts.join(", ")}`, {
+    id: toastId,
+  });
 }
 
 /**
@@ -214,9 +242,13 @@ export default function GenerateDocModal({
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingCommits, setIsLoadingCommits] = useState(false);
-  const [bootstrapProgress, setBootstrapProgress] = useState<{current: number, total: number, file: string} | null>(null);
+  const [bootstrapProgress, setBootstrapProgress] = useState<{
+    current: number;
+    total: number;
+    file: string;
+  } | null>(null);
   const [isBootstrapMode, setIsBootstrapMode] = useState<boolean>(
-    autoStart || (initialUrls && initialUrls.length > 0)
+    autoStart || (initialUrls && initialUrls.length > 0),
   );
 
   useEffect(() => {
@@ -284,7 +316,6 @@ export default function GenerateDocModal({
     setSelectedCommits(next);
   };
 
-  
   const handleBootstrap = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!repoPath) return;
@@ -297,34 +328,55 @@ export default function GenerateDocModal({
 
     const api = (window as any).electronAPI;
     if (!api || !api.readDirRecursive || !api.readFile) {
-      toast.error("File system Electron API not available. Ensure backend is updated.");
+      toast.error(
+        "File system Electron API not available. Ensure backend is updated.",
+      );
       return;
     }
 
     setIsGenerating(true);
-    setBootstrapProgress({ current: 0, total: 0, file: "Scanning directory..." });
+    setBootstrapProgress({
+      current: 0,
+      total: 0,
+      file: "Scanning directory...",
+    });
 
     // Files whose names (case-insensitive) should never be documented.
     // These are typically project meta-files, not source code.
     const SKIP_FILE_NAMES = new Set([
-      "readme.md", "readme.txt", "readme",
-      "changelog.md", "changelog.txt", "changelog",
-      "license", "license.md", "license.txt",
-      "contributing.md", "contributing.txt",
+      "readme.md",
+      "readme.txt",
+      "readme",
+      "changelog.md",
+      "changelog.txt",
+      "changelog",
+      "license",
+      "license.md",
+      "license.txt",
+      "contributing.md",
+      "contributing.txt",
       "code_of_conduct.md",
-      "authors", "authors.md",
-      "notice", "notice.md",
+      "authors",
+      "authors.md",
+      "notice",
+      "notice.md",
       "makefile",
-      ".gitignore", ".gitattributes", ".editorconfig",
-      ".eslintignore", ".prettierignore",
-      "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+      ".gitignore",
+      ".gitattributes",
+      ".editorconfig",
+      ".eslintignore",
+      ".prettierignore",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
       "bun.lockb",
     ]);
 
     try {
       // 1. Scan directory
       const dirRes = await api.readDirRecursive(repoPath);
-      if (!dirRes.success) throw new Error(dirRes.error || "Failed to scan directory");
+      if (!dirRes.success)
+        throw new Error(dirRes.error || "Failed to scan directory");
       const allFiles: string[] = dirRes.data;
 
       // Filter out irrelevant files before processing
@@ -333,25 +385,37 @@ export default function GenerateDocModal({
         return !SKIP_FILE_NAMES.has(fileName.toLowerCase());
       });
 
-      if (files.length === 0) throw new Error("No valid files found in directory");
+      if (files.length === 0)
+        throw new Error("No valid files found in directory");
 
       // 2. Create Code Reference root folder
       const sidebarItems = await localDb_getSidebarItems();
       let targetFolder = sidebarItems.find(
-        (item) => item.type === "folder" && item.name === "Code Reference" && item.parent_id === null
+        (item) =>
+          item.type === "folder" &&
+          item.name === "Code Reference" &&
+          item.parent_id === null,
       );
       if (!targetFolder) {
         targetFolder = await localDb_createItem("Code Reference", true, null);
       }
 
-      setBootstrapProgress({ current: 0, total: files.length, file: "Starting generation..." });
+      setBootstrapProgress({
+        current: 0,
+        total: files.length,
+        file: "Starting generation...",
+      });
 
       // 3. Process each file
       let processed = 0;
       for (let i = 0; i < files.length; i++) {
         const filePath = files[i];
         processed++;
-        setBootstrapProgress({ current: processed, total: files.length, file: filePath });
+        setBootstrapProgress({
+          current: processed,
+          total: files.length,
+          file: filePath,
+        });
 
         // Read file content
         const absolutePath = repoPath + "/" + filePath;
@@ -369,19 +433,24 @@ export default function GenerateDocModal({
           const genRes = await api.generateDoc({
             apiKey,
             userMessage: `File: ${filePath}\n\n` + content,
-            isBootstrap: true
+            isBootstrap: true,
           });
           if (!genRes.success) throw new Error(genRes.error);
           generatedMarkdown = genRes.data;
         } catch (err: any) {
           // If rate limited, sleep and retry once
-          if (err.message && (err.message.includes("429") || err.message.includes("Quota"))) {
-            toast.warning(`Rate limited on ${filePath}. Waiting 15s to retry...`);
+          if (
+            err.message &&
+            (err.message.includes("429") || err.message.includes("Quota"))
+          ) {
+            toast.warning(
+              `Rate limited on ${filePath}. Waiting 15s to retry...`,
+            );
             await sleep(15000);
             const genRes = await api.generateDoc({
               apiKey,
               userMessage: `File: ${filePath}\n\n` + content,
-              isBootstrap: true
+              isBootstrap: true,
             });
             if (!genRes.success) throw new Error(genRes.error);
             generatedMarkdown = genRes.data;
@@ -405,7 +474,7 @@ export default function GenerateDocModal({
               // Normalize both sides to string — parent_id is stored as a string in
               // IndexedDB but currentParentId may be a number from generateId(),
               // so strict equality would silently fail and create duplicate folders.
-              String(item.parent_id) === String(currentParentId)
+              String(item.parent_id) === String(currentParentId),
           );
           if (!existing) {
             existing = await localDb_createItem(part, true, currentParentId);
@@ -414,11 +483,16 @@ export default function GenerateDocModal({
         }
 
         // Save doc
-        await localDb_createItem(fileName, false, currentParentId, generatedMarkdown);
+        await localDb_createItem(
+          fileName,
+          false,
+          currentParentId,
+          generatedMarkdown,
+        );
 
         // Sleep to avoid rate limiting (4 seconds for free tier 15 RPM)
         if (i < files.length - 1) {
-          await sleep(4000); 
+          await sleep(4000);
         }
       }
 
@@ -429,7 +503,8 @@ export default function GenerateDocModal({
       console.error(error);
       let errorMessage = error.message || "An error occurred during generation";
       if (errorMessage.includes("429") || errorMessage.includes("Quota")) {
-        errorMessage = "Gemini API rate limit exceeded. Please wait a minute and try again.";
+        errorMessage =
+          "Gemini API rate limit exceeded. Please wait a minute and try again.";
       }
       toast.error(errorMessage);
     } finally {
@@ -440,6 +515,10 @@ export default function GenerateDocModal({
 
   const handleGenerateDoc = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    await submitGeneration(true);
+  };
+
+  const submitGeneration = async (isChangelog: boolean) => {
     if (selectedCommits.size === 0) return;
 
     const apiKey = localStorage.getItem("gemini_api_key");
@@ -470,6 +549,7 @@ export default function GenerateDocModal({
       const genRes = await api.generateDoc({
         apiKey,
         userMessage: diff,
+        isChangelog,
       });
 
       if (!genRes.success) {
@@ -480,9 +560,11 @@ export default function GenerateDocModal({
 
       // Ensure target folder exists
       const isBootstrap = autoStart || (initialUrls && initialUrls.length > 0);
-      const targetFolderName = isBootstrap
-        ? "Code Reference"
-        : "Changeset Summary";
+      const targetFolderName = isChangelog
+        ? "Changelog"
+        : isBootstrap
+          ? "Code Reference"
+          : "Changeset Summary";
 
       const sidebarItems = await localDb_getSidebarItems();
       let targetFolder = sidebarItems.find(
@@ -522,7 +604,7 @@ export default function GenerateDocModal({
       // ── Code Reference sync (non-blocking, runs after modal closes) ──────
       // Fire-and-forget: parse which files changed and sync Code Reference.
       syncCodeReference(api, apiKey, diff, repoPath).catch((err) =>
-        console.warn("Code Reference sync failed:", err)
+        console.warn("Code Reference sync failed:", err),
       );
     } catch (error: any) {
       console.error(error);
@@ -545,24 +627,20 @@ export default function GenerateDocModal({
       isOpen={isOpen}
       onClose={handleClose}
       showCloseButton={!isGenerating}
-      title={
-        isGenerating
-          ? "Generating Documentation"
-          : "Repository Assistant"
-      }
+      title={isGenerating ? "Generating Documentation" : "Repository Assistant"}
     >
       {!isGenerating && (
         <div className="flex border-b border-border mb-4">
           <button
             type="button"
-            className={`flex-1 py-2 text-sm font-medium ${!isBootstrapMode ? 'text-primary border-b-2 border-primary' : 'text-textSecondary hover:text-textPrimary'}`}
+            className={`flex-1 py-2 text-sm font-medium ${!isBootstrapMode ? "text-primary border-b-2 border-primary" : "text-textSecondary hover:text-textPrimary"}`}
             onClick={() => setIsBootstrapMode(false)}
           >
             Git Diff Summary
           </button>
           <button
             type="button"
-            className={`flex-1 py-2 text-sm font-medium ${isBootstrapMode ? 'text-primary border-b-2 border-primary' : 'text-textSecondary hover:text-textPrimary'}`}
+            className={`flex-1 py-2 text-sm font-medium ${isBootstrapMode ? "text-primary border-b-2 border-primary" : "text-textSecondary hover:text-textPrimary"}`}
             onClick={() => setIsBootstrapMode(true)}
           >
             Bootstrap Entire Repo
@@ -571,20 +649,33 @@ export default function GenerateDocModal({
       )}
       {isGenerating ? (
         <div className="flex flex-col items-center justify-center py-12 space-y-4">
-          <div className="text-primary animate-spin" style={{ animationDuration: "4000ms" }}>
+          <div
+            className="text-primary animate-spin"
+            style={{ animationDuration: "4000ms" }}
+          >
             <Loader />
           </div>
           <div className="text-center space-y-2">
             <p className="text-textPrimary font-semibold text-lg">
-              {bootstrapProgress ? `Processing ${bootstrapProgress.current} of ${bootstrapProgress.total}` : "Generating Documentation..."}
+              {bootstrapProgress
+                ? `Processing ${bootstrapProgress.current} of ${bootstrapProgress.total}`
+                : "Generating Documentation..."}
             </p>
-            <p className="text-textSecondary text-sm max-w-xs mx-auto truncate" title={bootstrapProgress?.file}>
-              {bootstrapProgress ? bootstrapProgress.file : "Analyzing your local git commits and generating a summary."}
+            <p
+              className="text-textSecondary text-sm max-w-xs mx-auto truncate"
+              title={bootstrapProgress?.file}
+            >
+              {bootstrapProgress
+                ? bootstrapProgress.file
+                : "Analyzing your local git commits and generating a summary."}
             </p>
           </div>
         </div>
       ) : isBootstrapMode ? (
-        <form onSubmit={handleBootstrap} className="space-y-4 flex flex-col max-h-[70vh]">
+        <form
+          onSubmit={handleBootstrap}
+          className="space-y-4 flex flex-col max-h-[70vh]"
+        >
           <div className="space-y-2 shrink-0">
             <label className="text-sm font-medium text-textSecondary block">
               Repository Path
@@ -607,11 +698,17 @@ export default function GenerateDocModal({
               </button>
             </div>
           </div>
-          
+
           <div className="flex-1 border border-border rounded-md mt-4 p-4 text-textSecondary bg-secondaryBg text-sm text-center flex flex-col items-center justify-center space-y-2 min-h-[150px]">
-             <p>This process will scan all code files in the directory.</p>
-             <p>A folder structure mimicking the repository will be created under "Code Reference".</p>
-             <p className="text-yellow-500">Note: API requests are automatically paced to respect Free Tier rate limits (15/min).</p>
+            <p>This process will scan all code files in the directory.</p>
+            <p>
+              A folder structure mimicking the repository will be created under
+              "Code Reference".
+            </p>
+            <p className="text-yellow-500">
+              Note: API requests are automatically paced to respect Free Tier
+              rate limits (15/min).
+            </p>
           </div>
 
           <button
@@ -709,7 +806,7 @@ export default function GenerateDocModal({
             className="w-full shrink-0 mt-4 flex items-center justify-center gap-2 py-2 bg-primary text-textPrimary rounded-md hover:bg-opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <AutoAwesome sx={{ fontSize: 18 }} />
-            Generate Docs{" "}
+            Generate Changelog{" "}
             {selectedCommits.size > 0 && `(${selectedCommits.size} selected)`}
           </button>
         </form>

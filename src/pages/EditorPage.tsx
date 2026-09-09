@@ -215,31 +215,32 @@ const EditorPage = () => {
     immediatelyRender: false,
   });
 
+  const lastInitializedDocId = useRef<string | number | null>(null);
+  const lastInitializedContent = useRef<any>(null);
+
   useEffect(() => {
     if (editor && activeDoc) {
-      // Read the draft imperatively so this effect ONLY fires on doc switches
-      // or external content changes — NOT on every debounced save tick.
-      // Including drafts[activeDoc.id] as a reactive dep caused a loop:
-      //   type → debounce fires (500ms) → draft updated → effect re-fires →
-      //   setContent(stale 500ms snapshot) → characters erased + cursor jumps.
       const draft = useDocStore.getState().drafts[activeDoc.id];
       const contentToSet = draft || activeDoc.content || "";
-      const currentEditorContent = JSON.stringify(editor.getJSON());
-      const targetContent = JSON.stringify(contentToSet);
 
-      if (currentEditorContent !== targetContent) {
+      const isNewDoc = lastInitializedDocId.current !== activeDoc.id;
+      const isExternalUpdate =
+        !isNewDoc && lastInitializedContent.current !== activeDoc.content;
+
+      // Only aggressively reset the editor content if the user switched documents
+      // or if an external process (like AI generation) updated the doc content.
+      // Do NOT reset it just because the component re-rendered while typing,
+      // as comparing stringified JSON (editor AST vs Markdown string) is unstable
+      // and causes severe cursor jumping/erasing glitches.
+      if (isNewDoc || isExternalUpdate) {
+        lastInitializedDocId.current = activeDoc.id;
+        lastInitializedContent.current = activeDoc.content;
+
         setTimeout(() => {
-          const { from, to } = editor.state.selection;
-          const isFocused = editor.isFocused;
-
           !contentToSet && editor.commands.focus("start");
           editor.commands.setContent(sanitizeTiptapContent(contentToSet), {
             emitUpdate: false,
           });
-
-          if (isFocused) {
-            editor.commands.setTextSelection({ from, to });
-          }
         }, 0);
       }
     }
@@ -275,11 +276,11 @@ const EditorPage = () => {
             <div className="mb-12 text-center">
               <picture>
                 <source
-                  srcSet="/assets/images/penqwin-primary.webp"
+                  srcSet="./assets/images/penqwin-primary.webp"
                   type="image/webp"
                 />
                 <img
-                  src="/assets/images/penqwin-primary.png"
+                  src="./assets/images/penqwin-primary.png"
                   alt="Penqwin Logo"
                   className="w-60 h-auto mb-6 mx-auto opacity-10 select-none"
                 />

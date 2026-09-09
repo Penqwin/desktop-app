@@ -5,6 +5,10 @@ import { fileURLToPath } from 'url';
 import { simpleGit } from 'simple-git';
 import { generateDocFromDiff } from './ai/gemini.js';
 
+// Redirect userData to a fresh temporary path to completely bypass the 
+// corrupted / locked AppData directory caused by the IDB QuotaManager crash.
+app.setPath('userData', path.join(app.getPath('temp'), 'PenqwinTempDB_' + Date.now()));
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -233,9 +237,9 @@ ipcMain.handle('read-file', async (_event, filePath: string) => {
 // --- AI Generation IPC Handlers ---
 
 ipcMain.handle('generate-doc', async (_event, payload) => {
-  const { apiKey, modelName, systemInstruction, userMessage, isBootstrap } = payload;
+  const { apiKey, modelName, systemInstruction, userMessage, isBootstrap, isChangelog } = payload;
   try {
-    const result = await generateDocFromDiff(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, userMessage, isBootstrap);
+    const result = await generateDocFromDiff(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, userMessage, isBootstrap, isChangelog);
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message };

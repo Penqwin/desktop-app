@@ -8,6 +8,7 @@ import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useDocStore } from "@/store/useDocStore";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { ROUTES, docUrl } from "@/lib/routes";
 import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 import { useSidebarClose } from "@/layouts/DashboardLayout";
 
@@ -63,7 +64,7 @@ export const TreeItemRow = ({
     <div
       className={`flex items-center w-full gap-2 py-2 px-2 cursor-pointer rounded-md min-w-0 group transition-colors duration-200
         ${!isAnyDragging ? "hover:bg-border hover:text-textPrimary" : ""}
-        ${pathname === "/dashboard" && String(docIdParam) === String(item.id) ? "text-primary bg-border/50" : "text-textSecondary"}
+        ${String(docIdParam) === String(item.id) ? "text-primary bg-border/50" : "text-textSecondary"}
         ${isGeneratingItem || isProcessing || isCreatingItem ? "animate-pulse opacity-70 italic" : ""}
         ${isCurrentDropTarget ? "bg-primary/10 ring-1 ring-primary/20" : ""}
         ${isOverNode && !isCurrentDropTarget && item.type === "file" ? "bg-primary/5" : ""}
@@ -82,7 +83,7 @@ export const TreeItemRow = ({
         )}
         {useDocStore.getState().drafts[item.id] && (
           <span
-            className={`absolute right-0 bottom-0 inline-block w-2 h-2 rounded-full border border-solid border-secondaryBg shrink-0 ${pathname === "/dashboard" && activeDoc?.id === item.id ? "bg-textSecondary" : "bg-primary"}`}
+            className={`absolute right-0 bottom-0 inline-block w-2 h-2 rounded-full border border-solid border-secondaryBg shrink-0 ${activeDoc?.id === item.id ? "bg-textSecondary" : "bg-primary"}`}
           />
         )}
       </div>
@@ -206,8 +207,8 @@ const TreeItem = ({
     opacity: isDragging ? 0.3 : 1,
   };
 
-  const router = useNavigate();
-  const pathname = useLocation();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const docIdParam = searchParams.get("doc");
 
@@ -243,7 +244,7 @@ const TreeItem = ({
     if (isRenaming || isAnyDragging) return;
     if ((isProcessing && !isGeneratingItem) || isCreatingItem) return; // Prevent clicking while processing
     if (isGeneratingItem) {
-      navigate(`/dashboard?doc=generating`);
+      navigate(docUrl("generating"));
       // Close sidebar on mobile when navigating
       if (window.innerWidth < 768) closeSidebar();
       return;
@@ -251,7 +252,7 @@ const TreeItem = ({
     if (item.type === "file") {
       setActiveDoc(item);
       fetchDocContent(item.id);
-      navigate(`/dashboard?doc=${item.id}`);
+      navigate(docUrl(item.id));
       // Auto-close the sidebar drawer on mobile after selecting a doc
       if (window.innerWidth < 768) closeSidebar();
     } else {

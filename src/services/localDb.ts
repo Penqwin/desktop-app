@@ -8,6 +8,37 @@
 import type { SidebarItem } from "@/types/sidebar";
 import { db, type SidebarRow } from "@/utils/db";
 
+// ─── Connection Resilience ────────────────────────────────────────────────────
+
+/**
+ * Executes `fn` with the Dexie db, automatically reopening the connection if
+ * it was closed by a versionchange event. 
+ * If the database is irreparably corrupted (UnknownError: Internal error),
+ * it wipes the database and restarts clean.
+ */
+async function withDb<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: any) {
+    if (err?.name === "DatabaseClosedError") {
+      console.warn("[localDb] Connection closed — waiting and reopening.");
+      await new Promise((r) => setTimeout(r, 150));
+      await db.open();
+      return await fn();
+    }
+    
+    // Catch Chromium IndexedDB corruption
+    if (err?.name === "UnknownError" && err?.message?.includes("Internal error")) {
+      console.error("[localDb] CRITICAL: IndexedDB corruption detected. Wiping database to self-heal.");
+      await db.delete(); // Delete the corrupted database
+      await db.open();   // Recreate it fresh
+      return await fn(); // Retry the operation
+    }
+
+    throw err;
+  }
+}
+
 // ─── ID Generation ───────────────────────────────────────────────────────────
 
 let _nextId = Date.now();
@@ -26,23 +57,26 @@ function getActiveOrgId(): string {
 
 export async function localDb_getSidebarItems(): Promise<SidebarItem[]> {
   try {
-    const activeOrgId = getActiveOrgId();
-    const rows = await db.sidebarItems
-      .filter(row => row.organization_id === activeOrgId || row.organization_id === "local")
-      .toArray();
-    // Rehydrate children array expected by the rest of the app
-    return rows.map((r) => ({ ...r, children: [] } as SidebarItem));
+    return await withDb(async () => {
+      const activeOrgId = getActiveOrgId();
+      const rows = await db.sidebarItems
+        .filter(row => row.organization_id === activeOrgId || row.organization_id === "local")
+        .toArray();
+      // Rehydrate children array expected by the rest of the app
+      return rows.map((r) => ({ ...r, children: [] } as SidebarItem));
+    });
   } catch {
+    // Never let a DB error crash the sidebar — return empty and let the UI recover
     return [];
   }
 }
 
 async function localDb_saveSidebarItem(row: SidebarRow): Promise<void> {
-  await db.sidebarItems.put(row);
+  await withDb(() => db.sidebarItems.put(row));
 }
 
 async function localDb_deleteSidebarItem(id: string): Promise<void> {
-  await db.sidebarItems.delete(id);
+  await withDb(() => db.sidebarItems.delete(id));
 }
 
 // ─── Create ───────────────────────────────────────────────────────────────────
@@ -82,12 +116,10 @@ export async function localDb_createItem(
 // ─── Read Content ─────────────────────────────────────────────────────────────
 
 export async function localDb_getContent(id: string | number): Promise<any> {
-  try {
+  return withDb(async () => {
     const row = await db.docContents.get(String(id));
     return row?.content ?? null;
-  } catch {
-    return null;
-  }
+  }).catch(() => null);
 }
 
 // ─── Save Content ─────────────────────────────────────────────────────────────
@@ -96,11 +128,13 @@ export async function localDb_saveContent(
   id: string | number,
   content: any,
 ): Promise<void> {
-  if (content === null || content === undefined) {
-    await db.docContents.delete(String(id));
-    return;
-  }
-  await db.docContents.put({ id: String(id), content });
+  await withDb(async () => {
+    if (content === null || content === undefined) {
+      await db.docContents.delete(String(id));
+      return;
+    }
+    await db.docContents.put({ id: String(id), content });
+  });
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -109,10 +143,12 @@ export async function localDb_deleteItems(
   ids: (string | number)[],
 ): Promise<void> {
   const strIds = ids.map(String);
-  await db.transaction("rw", db.sidebarItems, db.docContents, async () => {
-    await db.sidebarItems.bulkDelete(strIds);
-    await db.docContents.bulkDelete(strIds);
-  });
+  await withDb(() =>
+    db.transaction("rw", db.sidebarItems, db.docContents, async () => {
+      await db.sidebarItems.bulkDelete(strIds);
+      await db.docContents.bulkDelete(strIds);
+    }),
+  );
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────
