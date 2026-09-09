@@ -30,6 +30,7 @@ CRITICAL INSTRUCTIONS:
 2.  **User-Facing**: Focus on the value delivered to the end user. Hide internal refactorings unless they impact developers or users using the system.
 3.  **Tone**: Professional, clear, and focused on the "what" and "why" for users.
 4.  **Markdown**: Use clean Markdown with clear headings.
+5.  **Commits**: Include the respective commits listed at the bottom of the document.
 
 Goal: Create a clean, readable Changelog for this release.`;
 
