@@ -17,6 +17,10 @@ interface DocState {
   extensionUrl: string | null;
   setSidebarData: (data: SidebarItem[]) => void;
   updateSidebarData: (id: number | string, updatedFields: Partial<SidebarItem> & { content?: any }) => void;
+  /** Update the sidebarData cache only (does NOT touch activeDoc).
+   * Use this after a save so the cache stays fresh without mutating
+   * activeDoc.content, which would trigger EditorPage's useEffect → setContent → cursor jump. */
+  updateSidebarItemCache: (id: number | string, fields: Partial<SidebarItem> & { content?: any }) => void;
   moveSidebarItem: (id: number | string, newParentId: number | string | null) => void;
   setActiveDoc: (doc: SidebarItem | null) => void;
   setGeneratingId: (id: string | number | null, parentId?: string | number | null) => void;
@@ -118,6 +122,14 @@ export const useDocStore = create<DocState>((set, get) => ({
       activeDoc: newActiveDoc
     };
   }),
+
+  // Only update the sidebarData tree (cache for navigation); never touch activeDoc.
+  // Used by saveToSupabase so the saved content is cached for future doc switches
+  // without mutating activeDoc.content — which is a dep of EditorPage's useEffect
+  // and would trigger setContent() → cursor jump.
+  updateSidebarItemCache: (id: number | string, fields: Partial<SidebarItem> & { content?: any }) => set((state) => ({
+    sidebarData: updateNestedItem(state.sidebarData, id, fields),
+  })),
   
   moveSidebarItem: (id: number | string, newParentId: number | string | null) => set((state) => {
     const newSidebarData = updateNestedItem(state.sidebarData, id, { parent_id: newParentId });
