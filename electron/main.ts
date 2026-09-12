@@ -5,9 +5,10 @@ import { fileURLToPath } from 'url';
 import { simpleGit } from 'simple-git';
 import { generateDocFromDiff } from './ai/gemini.js';
 
-// Redirect userData to a fresh temporary path to completely bypass the 
-// corrupted / locked AppData directory caused by the IDB QuotaManager crash.
-app.setPath('userData', path.join(app.getPath('temp'), 'PenqwinTempDB_' + Date.now()));
+// NOTE: userData is intentionally left at its default Electron path so that
+// IndexedDB (Dexie / PenqwinDatabase_v2) persists across app restarts.
+// IDB corruption is handled in src/utils/db.ts (renamed DB) and
+// src/services/localDb.ts (UnknownError self-heal).
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
