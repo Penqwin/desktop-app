@@ -247,7 +247,13 @@ const SideBar = ({ onClose }: { onClose?: () => void }) => {
     if (sidebarData.length === 0 || !docIdParam) return;
 
     const docId = docIdParam;
-    if (activeDoc?.id === docId) return;
+    // NOTE: activeDoc?.id can be a number while docId is always a string (from
+    // searchParams.get("doc")). Strict equality (===) between number and string
+    // always returns false, so the guard was silently broken — every sidebarData
+    // mutation (e.g. on save via updateSidebarItemCache) would re-call
+    // setActiveDoc(foundDoc) with the updated content, changing activeDoc.content
+    // and triggering EditorPage's useEffect → setContent() → cursor jump.
+    if (String(activeDoc?.id) === String(docId)) return;
 
     const foundDoc = sidebarData.find((d) => String(d.id) === String(docId));
     if (foundDoc && foundDoc.type === "file") {

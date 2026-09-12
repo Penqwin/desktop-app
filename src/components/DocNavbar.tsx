@@ -26,9 +26,9 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
   const generatingId = useDocStore((state) => state.generatingId);
   const sidebarData = useDocStore((state) => state.sidebarData);
   const updateSidebarData = useDocStore((state) => state.updateSidebarData);
+  const updateSidebarItemCache = useDocStore((state) => state.updateSidebarItemCache);
   const clearDraft = useDocStore((state) => state.clearDraft);
   const fetchDocContent = useDocStore((state) => state.fetchDocContent);
-  const setActiveDoc = useDocStore((state) => state.setActiveDoc);
   const setGeneratingId = useDocStore((state) => state.setGeneratingId);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -175,12 +175,20 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
     setSaveStatus(SaveStatus.SAVING);
 
     try {
-      // Desktop: save content to local storage
+      // Desktop: persist content to IndexedDB (source of truth).
       const { localDb_saveContent } = await import("@/services/localDb");
       await localDb_saveContent(id, content);
 
-      // Update the local in-memory state too
-      updateSidebarData(id, { content });
+      // Update the sidebarData cache so future doc-switches re-use the saved
+      // content without re-fetching from IndexedDB.
+      // IMPORTANT: use updateSidebarItemCache (NOT updateSidebarData) here.
+      // updateSidebarData also mutates activeDoc.content, which is a dependency
+      // of EditorPage's useEffect. That would re-fire the effect, compare
+      // editor.getJSON() against the stored/sanitized content (subtle round-trip
+      // differences cause a mismatch), call setContent() inside a setTimeout
+      // while the editor is focused, and jump the cursor.
+      // updateSidebarItemCache only touches sidebarData — activeDoc is untouched.
+      updateSidebarItemCache(id, { content });
       clearDraft(id);
 
       setSaveStatus(SaveStatus.SAVED);

@@ -288,6 +288,15 @@ const EditorPage = () => {
   // dependency would cause this effect to fire every 500 ms (after each
   // debounced setDraft call), which runs setContent + setTextSelection and
   // repositions the cursor mid-keystroke — the glitch we are fixing.
+  //
+  // NOTE: `activeDoc?.content` IS in the dependency array because
+  // fetchDocContent() resolves asynchronously: when the user clicks a doc,
+  // setActiveDoc fires first (content = null), then fetchDocContent resolves
+  // and sets activeDoc.content — we need the effect to re-run then to
+  // populate the editor. The cursor-jump-on-save issue is fixed separately in
+  // saveToSupabase: we no longer pass `content` to updateSidebarData, so
+  // activeDoc.content is never mutated by a save and this dep never fires
+  // spuriously on save.
   }, [
     activeDoc?.id,
     activeDoc?.content,
