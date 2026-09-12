@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { Outlet, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import SideBar from '@/components/SideBar';
 import { useDocStore } from '@/store/useDocStore';
@@ -20,16 +20,32 @@ export default function DashboardLayout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const sidebarData = useDocStore((state) => state.sidebarData);
+
+  // Narrow selector: only need to know if there are ANY docs (for shouldAutoOpen).
+  // Using the full sidebarData array here caused DashboardLayout to re-render on
+  // every save (sidebarData mutates), which in turn created a new context value
+  // object and forced ALL SidebarContext consumers (EditorPage, DocNavbar, etc.)
+  // to re-render — ultimately causing TipTap cursor-repositioning glitches via
+  // the EditorInstanceManager.compareOptions / setOptions chain.
+  const hasDocs = useDocStore((state) => state.sidebarData.length > 0);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean | null>(null);
 
   const openSidebar = useCallback(() => setIsSidebarOpen(true), []);
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
 
+  // Memoize context value so re-renders of DashboardLayout don't create a new
+  // object reference that forces every SidebarContext consumer to re-render.
+  // openSidebar and closeSidebar are already stable (useCallback with [] deps),
+  // so this memo value never actually changes — it's purely defensive.
+  const contextValue = useMemo(
+    () => ({ openSidebar, closeSidebar }),
+    [openSidebar, closeSidebar],
+  );
+
   const shouldAutoOpen =
     !searchParams.get("doc") &&
     location.pathname === "/" &&
-    sidebarData.length > 0;
+    hasDocs;
 
   const isEffectivelyOpen =
     isSidebarOpen === true || (isSidebarOpen === null && shouldAutoOpen);
@@ -52,7 +68,7 @@ export default function DashboardLayout() {
   }, [isEffectivelyOpen]);
 
   return (
-    <SidebarContext.Provider value={{ openSidebar, closeSidebar }}>
+    <SidebarContext.Provider value={contextValue}>
       <div className="flex h-screen overflow-hidden relative bg-[#0a0a0a] text-white">
         <div
           className={`fixed inset-0 z-30 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden ${

@@ -1,4 +1,5 @@
 import { FloatingMenu } from "@tiptap/react/menus";
+import { useEditorState } from "@tiptap/react";
 import { useEffect, useRef, useState, useCallback } from "react";
 // icons
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
@@ -11,6 +12,8 @@ const FloatingMenuComponent = ({ editor }: { editor: any }) => {
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Ref so event handlers always see the latest index without stale closures
   const selectedIndexRef = useRef(0);
+  // Track previous menu visibility to detect open transitions without setState in shouldShow
+  const wasMenuVisibleRef = useRef(false);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -21,6 +24,31 @@ const FloatingMenuComponent = ({ editor }: { editor: any }) => {
   useEffect(() => {
     itemRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
+
+  // Subscribe to editor transactions so we can detect when the slash menu
+  // transitions from hidden → visible and reset the highlight.
+  // We use useEditorState (not shouldShow) to avoid calling setState inside
+  // a ProseMirror transaction callback, which causes cursor repositioning glitches.
+  const isMenuVisibleNow = useEditorState({
+    editor,
+    selector: (ctx: any) => {
+      if (!ctx.editor) return false;
+      const { selection } = ctx.editor.state;
+      if (!selection.empty) return false;
+      const { $from } = selection;
+      const textBefore = $from.parent.textBetween(0, $from.parentOffset, " ");
+      return textBefore === "/";
+    },
+  });
+
+  useEffect(() => {
+    const isNowVisible = Boolean(isMenuVisibleNow);
+    if (isNowVisible && !wasMenuVisibleRef.current) {
+      // Menu just opened — reset highlight to first item
+      setSelectedIndex(0);
+    }
+    wasMenuVisibleRef.current = isNowVisible;
+  }, [isMenuVisibleNow]);
 
   // ── Helper: is the menu currently supposed to be visible? ────────────────
   const isMenuVisible = useCallback(() => {
@@ -130,9 +158,7 @@ const FloatingMenuComponent = ({ editor }: { editor: any }) => {
         const { $from } = selection;
         if (!selection.empty) return false;
         const textBefore = $from.parent.textBetween(0, $from.parentOffset, " ");
-        const show = textBefore === "/";
-        if (show) setSelectedIndex(0); // reset highlight when menu opens
-        return show;
+        return textBefore === "/";
       }}
       updateDelay={0}
       options={{

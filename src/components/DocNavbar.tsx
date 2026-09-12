@@ -93,7 +93,18 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
   };
 
   const handleDiscardConfirm = () => {
-    if (activeDoc?.id) clearDraft(activeDoc.id);
+    if (!activeDoc?.id) return;
+    // 1. Remove the draft from the store first
+    clearDraft(activeDoc.id);
+    // 2. Reset the editor to the last saved content.
+    //    Without this, EditorPage's useEffect won't fire (activeDoc.content
+    //    didn't change) and the editor would stay on the dirty content.
+    if (editor && activeDoc.content !== undefined) {
+      editor.commands.setContent(
+        sanitizeTiptapContent(activeDoc.content || ""),
+        { emitUpdate: false }
+      );
+    }
     setIsDiscardModalOpen(false);
   };
 
@@ -101,6 +112,27 @@ const DocNavbar = ({ editor }: { editor: Editor | null }) => {
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
+
+  // Safety net: persist any unsaved draft to IndexedDB when the app/window closes.
+  // This replaces the per-keystroke auto-save that was removed because it caused
+  // updateSidebarData → activeDoc.content mutation → EditorPage useEffect →
+  // setContent() → cursor jumping during typing.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const state = useDocStore.getState();
+      const docId = state.activeDoc?.id;
+      if (!docId) return;
+      const draft = state.drafts[docId];
+      if (!draft) return;
+      // Fire-and-forget — synchronous IndexedDB writes aren't guaranteed on unload,
+      // but Dexie/IndexedDB queues the write before the process exits on Electron.
+      import("@/services/localDb").then(({ localDb_saveContent }) => {
+        localDb_saveContent(docId, draft);
+      });
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   // Ctrl+S / Cmd+S keyboard shortcut to save
   useEffect(() => {
