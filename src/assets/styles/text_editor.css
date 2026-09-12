@@ -16,7 +16,7 @@
 
 /* Basic editor styling */
 .tiptap {
-  @apply pl-6 min-h-[150px] outline-none transition-all duration-200 break-words;
+  @apply pl-6 min-h-[150px] outline-none break-words;
 }
 
 .tiptap p {

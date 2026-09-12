@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, memo } from "react";
 // icons
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 // tiptap
@@ -11,9 +11,24 @@ import TableContextMenu from "@/components/Editor/TableContextMenu";
 
 const NESTED_CONFIG = { edgeDetection: { threshold: -16 } };
 
-const TextEditor = ({ editor }: any) => {
-  const [nested] = useState(true);
-  const [isInsideTable, setIsInsideTable] = useState(false);
+const TABLE_NODE_TYPES = new Set(["table", "tableRow", "tableCell", "tableHeader"]);
+
+/**
+ * TextEditor is memo-wrapped so re-renders from EditorPage (e.g. Zustand state
+ * changes for saves, fetching, etc.) do NOT propagate here. The editor prop is
+ * a stable reference from useEditor, so memo effectively shields all TipTap
+ * internals from unnecessary React reconciliation.
+ *
+ * isInsideTable is tracked via a mutable ref + imperative DOM manipulation
+ * rather than React state. This completely eliminates the re-render cycle:
+ *   onNodeChange → setIsInsideTable → TextEditor re-renders → EditorContent
+ *   re-renders → potential cursor disruption during ProseMirror updates.
+ */
+const TextEditor = memo(({ editor }: any) => {
+  // Ref instead of useState: toggling the icon visibility imperatively avoids
+  // any React re-render when the user's cursor moves between table / non-table nodes.
+  const isInsideTableRef = useRef(false);
+  const dragIconWrapperRef = useRef<HTMLSpanElement>(null);
 
   if (!editor) {
     return null;
@@ -23,48 +38,43 @@ const TextEditor = ({ editor }: any) => {
     <>
       <DragHandle
         editor={editor}
-        nested={nested ? NESTED_CONFIG : false}
+        nested={NESTED_CONFIG}
         onNodeChange={({ node, pos }) => {
-          if (!node) {
-            setIsInsideTable(false);
-            return;
-          }
+          let insideTable = false;
 
-          // Check if node is table related
-          const isTableNode = [
-            "table",
-            "tableRow",
-            "tableCell",
-            "tableHeader",
-          ].includes(node.type.name);
-
-          // Also check if the node is inside a table cell
-          const $pos = editor.state.doc.resolve(pos);
-          let insideTable = isTableNode;
-          for (let d = $pos.depth; d > 0; d--) {
-            const ancestor = $pos.node(d);
-            if (
-              ["table", "tableRow", "tableCell", "tableHeader"].includes(
-                ancestor.type.name,
-              )
-            ) {
+          if (node) {
+            if (TABLE_NODE_TYPES.has(node.type.name)) {
               insideTable = true;
-              break;
+            } else {
+              const $pos = editor.state.doc.resolve(pos);
+              for (let d = $pos.depth; d > 0; d--) {
+                if (TABLE_NODE_TYPES.has($pos.node(d).type.name)) {
+                  insideTable = true;
+                  break;
+                }
+              }
             }
           }
-          // Defer the React state update to avoid interrupting ProseMirror's transaction
-          // Synchronous state updates here cause severe typing glitches on Enter or Space
-          requestAnimationFrame(() => {
-            setIsInsideTable(insideTable);
-          });
+
+          // Defer to avoid interrupting ProseMirror's transaction dispatch.
+          // Use imperative DOM update instead of setState to prevent any
+          // React re-render from firing during or after a keypress.
+          if (insideTable !== isInsideTableRef.current) {
+            requestAnimationFrame(() => {
+              isInsideTableRef.current = insideTable;
+              if (dragIconWrapperRef.current) {
+                dragIconWrapperRef.current.style.display = insideTable ? "none" : "";
+              }
+            });
+          }
         }}
       >
-        {!isInsideTable && (
+        <span ref={dragIconWrapperRef}>
           <DragIndicatorIcon
             className="text-textSecondary custom-drag-handle"
             fontSize="small"
           />
-        )}
+        </span>
       </DragHandle>
 
       <EditorContent editor={editor} />
@@ -74,6 +84,8 @@ const TextEditor = ({ editor }: any) => {
       <TableContextMenu editor={editor} />
     </>
   );
-};
+});
+
+TextEditor.displayName = "TextEditor";
 
 export default TextEditor;

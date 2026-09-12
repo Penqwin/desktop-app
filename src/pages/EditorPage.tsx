@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import DocNavbar from "@/components/DocNavbar";
@@ -91,9 +91,72 @@ const CustomShortcuts = Extension.create({
   },
 });
 
+// ── Stable extension configs ────────────────────────────────────────────────
+// IMPORTANT: These MUST be defined at module level (outside the component).
+// TipTap v3's EditorInstanceManager.compareOptions() checks extensions by
+// **reference equality** (===). If any extension object is re-created on every
+// render (e.g. via StarterKit.configure({}) inside the component body),
+// compareOptions always returns false → editor.setOptions() is called on every
+// keystroke → cursor repositioned. Hoisting here ensures the same object
+// references are reused for the lifetime of the app.
+const StarterKitExtension = StarterKit.configure({
+  codeBlock: false,
+  link: {
+    openOnClick: false,
+    validate: (href: string) => {
+      const normalized = href.trim().toLowerCase();
+      return (
+        normalized.startsWith("http://") ||
+        normalized.startsWith("https://") ||
+        normalized.startsWith("/") ||
+        normalized.startsWith("#") ||
+        normalized.startsWith("mailto:")
+      );
+    },
+  },
+});
+
+const MarkdownExtension = Markdown.configure({
+  html: false,
+  tightLists: true,
+  bulletListMarker: "-",
+});
+
+const PlaceholderExtension = Placeholder.configure({
+  placeholder: "Start typing here or press \"/\" for commands",
+  showOnlyCurrent: true,
+  includeChildren: true,
+});
+
+const TableExtension = Table.configure({ resizable: true });
+
+// The array itself must also be stable — a new [] literal each render
+// would still cause compareOptions to see a new reference.
+const EDITOR_EXTENSIONS = [
+  StarterKitExtension,
+  CustomCodeBlock,
+  MarkdownExtension,
+  PlaceholderExtension,
+  TableExtension,
+  TableRow,
+  TableHeader,
+  TableCell,
+  CustomShortcuts,
+];
+
 const EditorPage = () => {
+
   const activeDoc = useDocStore((state) => state.activeDoc);
-  const sidebarData = useDocStore((state) => state.sidebarData);
+  // NOTE: We intentionally do NOT subscribe to `drafts` here.
+  // A reactive subscription would re-render EditorPage every 500 ms while
+  // the user types (each debounced setDraft call). That re-render feeds into
+  // TipTap v3's EditorInstanceManager and causes cursor-repositioning glitches.
+  // Instead, we read drafts imperatively from getState() inside the effect.
+  // Use a narrow selector that only returns the boolean we actually need in the
+  // empty-state branch — prevents EditorPage from re-rendering every time
+  // sidebarData mutates (e.g. on every save), which would cause TipTap v3's
+  // EditorInstanceManager to call editor.setOptions() and jump the cursor.
+  const hasDocs = useDocStore((state) => state.sidebarData.length > 0);
   const setGeneratingId = useDocStore((state) => state.setGeneratingId);
   const setIsGenerateModalOpen = useDocStore(
     (state) => state.setIsGenerateModalOpen,
@@ -150,105 +213,85 @@ const EditorPage = () => {
           JSON.stringify(currentContent) !== JSON.stringify(originalContent);
       }
 
+      // Only update the in-memory draft flag — do NOT write to IndexedDB here.
+      // IndexedDB saves happen exclusively on explicit Save (Ctrl+S / Save button)
+      // via DocNavbar.saveToSupabase. Writing here caused updateSidebarData to
+      // mutate activeDoc.content every 500 ms, which triggered the EditorPage
+      // useEffect → setContent() → cursor jump.
       if (isDirty) {
         state.setDraft(id, currentContent);
-        // Auto-save to IndexedDB (desktop persistence)
-        import("@/services/localDb").then(({ localDb_saveContent }) => {
-          localDb_saveContent(id, currentContent);
-        });
       } else {
         state.clearDraft(id);
       }
     }, 500),
   ).current;
 
+  // Stable callback reference: using useCallback ensures TipTap v3's
+  // EditorInstanceManager.compareOptions() sees the same function on every render
+  // and does NOT call editor.setOptions(), which would reset cursor position.
+  const handleEditorUpdate = useCallback(({ editor }: { editor: any }) => {
+    const state = useDocStore.getState();
+    const currentActiveDoc = state.activeDoc;
+    if (currentActiveDoc?.id) {
+      debouncedSync(
+        String(currentActiveDoc.id),
+        editor.getJSON(),
+        currentActiveDoc.content,
+      );
+    }
+    // debouncedSync is stable (useRef.current), no need to list as dep
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSync]);
+
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        codeBlock: false,
-        link: {
-          openOnClick: false,
-          validate: (href: string) => {
-            const normalized = href.trim().toLowerCase();
-            return (
-              normalized.startsWith("http://") ||
-              normalized.startsWith("https://") ||
-              normalized.startsWith("/") ||
-              normalized.startsWith("#") ||
-              normalized.startsWith("mailto:")
-            );
-          },
-        },
-      }),
-      CustomCodeBlock,
-      Markdown.configure({
-        html: false,
-        tightLists: true,
-        bulletListMarker: "-",
-      }),
-      Placeholder.configure({
-        placeholder: "Start typing here or press “/” for commands",
-        showOnlyCurrent: true,
-        includeChildren: true,
-      }),
-      Table.configure({
-        resizable: true,
-      }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      CustomShortcuts,
-    ],
+    extensions: EDITOR_EXTENSIONS,
     content: "",
-    onUpdate: ({ editor }: { editor: any }) => {
-      const state = useDocStore.getState();
-      const currentActiveDoc = state.activeDoc;
-      if (currentActiveDoc?.id) {
-        debouncedSync(
-          String(currentActiveDoc.id),
-          editor.getJSON(),
-          currentActiveDoc.content,
-        );
-      }
-    },
+    onUpdate: handleEditorUpdate,
     editable: !isReadOnly,
     immediatelyRender: false,
-  });
+  }, [isReadOnly]);
 
-  const lastInitializedDocId = useRef<string | number | null>(null);
-  const lastInitializedContent = useRef<any>(null);
 
   useEffect(() => {
     if (editor && activeDoc) {
-      const draft = useDocStore.getState().drafts[activeDoc.id];
-      const contentToSet = draft || activeDoc.content || "";
+      // Prioritize persistent draft content over database content.
+      // Read imperatively — avoids subscribing EditorPage to drafts changes.
+      const storedDraft = useDocStore.getState().drafts[activeDoc.id];
+      const contentToSet = storedDraft || activeDoc.content || "";
 
-      const isNewDoc = lastInitializedDocId.current !== activeDoc.id;
-      const isExternalUpdate =
-        !isNewDoc && lastInitializedContent.current !== activeDoc.content;
+      // Only set content if it differs from current editor content to avoid loops or cursor reset
+      const currentEditorContent = JSON.stringify(editor.getJSON());
+      const targetContent = JSON.stringify(contentToSet);
 
-      // Only aggressively reset the editor content if the user switched documents
-      // or if an external process (like AI generation) updated the doc content.
-      // Do NOT reset it just because the component re-rendered while typing,
-      // as comparing stringified JSON (editor AST vs Markdown string) is unstable
-      // and causes severe cursor jumping/erasing glitches.
-      if (isNewDoc || isExternalUpdate) {
-        lastInitializedDocId.current = activeDoc.id;
-        lastInitializedContent.current = activeDoc.content;
-
+      if (currentEditorContent !== targetContent) {
+        // Defer execution to avoid React 'flushSync' error from Tiptap NodeViews
         setTimeout(() => {
+          // Save current selection if editor is focused
+          const { from, to } = editor.state.selection;
+          const isFocused = editor.isFocused;
+
           !contentToSet && editor.commands.focus("start");
           editor.commands.setContent(sanitizeTiptapContent(contentToSet), {
             emitUpdate: false,
           });
+
+          // Restore selection if it was focused
+          if (isFocused) {
+            editor.commands.setTextSelection({ from, to });
+          }
         }, 0);
       }
     }
+  // NOTE: `drafts` is intentionally NOT in this dependency array.
+  // The draft is only needed as a snapshot at the moment of a doc-switch
+  // (activeDoc.id changes) to restore unsaved content. Adding drafts as a
+  // dependency would cause this effect to fire every 500 ms (after each
+  // debounced setDraft call), which runs setContent + setTextSelection and
+  // repositions the cursor mid-keystroke — the glitch we are fixing.
   }, [
     activeDoc?.id,
     activeDoc?.content,
     editor,
-    // drafts[activeDoc.id] intentionally omitted — see comment above.
   ]);
 
   useEffect(() => {
@@ -287,7 +330,7 @@ const EditorPage = () => {
               </picture>
             </div>
 
-            {sidebarData.length === 0 ? (
+            {!hasDocs ? (
               <div>
                 {!isReadOnly && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-6 md:px-0 w-full">
