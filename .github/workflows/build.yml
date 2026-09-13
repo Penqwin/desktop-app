@@ -2,9 +2,9 @@ name: Build Electron App
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install Dependencies
         run: npm ci
@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist-apps/*.exe
+          path: release-build/*.exe
           if-no-files-found: error
 
       - name: Upload Mac Installer
@@ -53,5 +53,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-installer
-          path: dist-apps/*.dmg
+          path: release-build/*.dmg
           if-no-files-found: error
